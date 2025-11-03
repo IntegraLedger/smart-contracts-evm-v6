@@ -1,0 +1,176 @@
+{
+  "id": "send-payment-request-v6",
+  "name": "Send Payment Request (V6)",
+  "version": "2.0.0",
+  "category": "blockchain",
+  "description": "Send payment request with encrypted payload - IntegraSignalV6",
+  "integraId": 7,
+  "defaults": {
+    "chain": "polygon"
+  },
+  "metadata": {
+    "tags": ["payment-request", "v6", "encrypted", "signal"],
+    "tier": 3,
+    "category": "blockchain",
+    "permissions": ["blockchain.signal.write"]
+  },
+  "workflow": {
+    "steps": [
+      {
+        "id": "send-payment-request",
+        "name": "Send Payment Request on Blockchain",
+        "type": "activity",
+        "action": "message",
+        "timeout": "300s",
+        "retryPolicy": {
+          "initialInterval": "5s",
+          "maximumAttempts": 5,
+          "maximumInterval": "60s",
+          "backoffCoefficient": 2
+        },
+        "actionParams": {
+          "type": "blockchain",
+          "chain": "polygon",
+          "contractType": "signal",
+          "contractVersion": "v6.0"
+        },
+        "continueOnFailure": false
+      },
+      {
+        "id": "emit-completion",
+        "name": "Emit Workflow Completion Event",
+        "type": "activity",
+        "action": "emit",
+        "actionParams": {
+          "eventType": "workflow.send-payment-request.completed",
+          "data": {
+            "integraHash": "${context.integraHash}",
+            "requestId": "${results.send-payment-request.requestId}",
+            "transactionHash": "${results.send-payment-request.transactionHash}"
+          }
+        }
+      }
+    ],
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "integraHash",
+        "requestorTokenId",
+        "payerTokenId",
+        "payer",
+        "encryptedPayload",
+        "encryptedSessionKeyPaymentRequestr",
+        "encryptedSessionKeyPayer",
+        "payloadHashAttestation",
+        "invoiceReference",
+        "displayAmount",
+        "displayCurrency"
+      ],
+      "properties": {
+        "integraHash": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$",
+          "description": "Document identifier"
+        },
+        "requestorTokenId": {
+          "type": "number",
+          "description": "Token held by requestor"
+        },
+        "payerTokenId": {
+          "type": "number",
+          "description": "Token held by payer"
+        },
+        "payer": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{40}$",
+          "description": "Payer ephemeral address"
+        },
+        "encryptedPayload": {
+          "type": "string",
+          "description": "AES-encrypted payment details (crypto/wire/ACH/Stripe)"
+        },
+        "encryptedSessionKeyPaymentRequestr": {
+          "type": "string",
+          "description": "Session key encrypted for requestor"
+        },
+        "encryptedSessionKeyPayer": {
+          "type": "string",
+          "description": "Session key encrypted for payer"
+        },
+        "payloadHashAttestation": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$",
+          "description": "EAS attestation UID"
+        },
+        "invoiceReference": {
+          "type": "string",
+          "description": "Payment reference/description"
+        },
+        "displayAmount": {
+          "type": "number",
+          "description": "Amount for UI display"
+        },
+        "displayCurrency": {
+          "type": "string",
+          "description": "Currency for UI display (USD, BTC, etc.)"
+        }
+      }
+    }
+  },
+  "blockchainSchema": {
+    "method": "sendPaymentRequest",
+    "contract": "IntegraSignal",
+    "contractType": "signal",
+    "parameters": {
+      "integraHash": {
+        "source": "input",
+        "path": "integraHash"
+      },
+      "requestorTokenId": {
+        "source": "input",
+        "path": "requestorTokenId"
+      },
+      "payerTokenId": {
+        "source": "input",
+        "path": "payerTokenId"
+      },
+      "payer": {
+        "source": "input",
+        "path": "payer"
+      },
+      "encryptedPayload": {
+        "source": "input",
+        "path": "encryptedPayload"
+      },
+      "encryptedSessionKeyPaymentRequestr": {
+        "source": "input",
+        "path": "encryptedSessionKeyPaymentRequestr"
+      },
+      "encryptedSessionKeyPayer": {
+        "source": "input",
+        "path": "encryptedSessionKeyPayer"
+      },
+      "payloadHashAttestation": {
+        "source": "input",
+        "path": "payloadHashAttestation"
+      },
+      "invoiceReference": {
+        "source": "input",
+        "path": "invoiceReference"
+      },
+      "displayAmount": {
+        "source": "input",
+        "path": "displayAmount"
+      },
+      "displayCurrency": {
+        "source": "input",
+        "path": "displayCurrency"
+      }
+    }
+  },
+  "outputs": {
+    "requestId": "${results.send-payment-request.requestId}",
+    "transactionHash": "${results.send-payment-request.transactionHash}",
+    "blockNumber": "${results.send-payment-request.blockNumber}"
+  }
+}

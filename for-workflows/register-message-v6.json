@@ -1,0 +1,164 @@
+{
+  "id": "register-message-v6",
+  "name": "Register Message (V6)",
+  "version": "2.0.0",
+  "category": "blockchain",
+  "description": "Register a message for workflow event with ZK proof - IntegraMessageV6",
+  "integraId": 6,
+  "defaults": {
+    "chain": "polygon",
+    "tokenId": 0,
+    "eventRef": "",
+    "message": ""
+  },
+  "metadata": {
+    "tags": ["message-registration", "v6", "zkproof", "messaging"],
+    "tier": 3,
+    "category": "blockchain",
+    "permissions": ["blockchain.message.write"]
+  },
+  "workflow": {
+    "steps": [
+      {
+        "id": "register-message",
+        "name": "Register Message on Blockchain",
+        "type": "activity",
+        "action": "message",
+        "timeout": "300s",
+        "retryPolicy": {
+          "initialInterval": "5s",
+          "maximumAttempts": 5,
+          "maximumInterval": "60s",
+          "backoffCoefficient": 2
+        },
+        "actionParams": {
+          "type": "blockchain",
+          "chain": "polygon",
+          "contractType": "message",
+          "contractVersion": "v6.0"
+        },
+        "continueOnFailure": false
+      },
+      {
+        "id": "emit-completion",
+        "name": "Emit Workflow Completion Event",
+        "type": "activity",
+        "action": "emit",
+        "actionParams": {
+          "eventType": "workflow.register-message.completed",
+          "data": {
+            "integraHash": "${context.integraHash}",
+            "processHash": "${input.processHash}",
+            "transactionHash": "${results.register-message.transactionHash}"
+          }
+        }
+      }
+    ],
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "integraHash",
+        "tokenId",
+        "processHash",
+        "proofA",
+        "proofB",
+        "proofC",
+        "eventRef",
+        "message"
+      ],
+      "properties": {
+        "integraHash": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$",
+          "description": "Document identifier"
+        },
+        "tokenId": {
+          "type": "number",
+          "description": "Token holder identifier (optional, can be 0)"
+        },
+        "processHash": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$",
+          "description": "Workflow/process identifier (requires zkProof)"
+        },
+        "proofA": {
+          "type": "array",
+          "items": {"type": "number"},
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "ZK proof component A"
+        },
+        "proofB": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {"type": "number"},
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "ZK proof component B"
+        },
+        "proofC": {
+          "type": "array",
+          "items": {"type": "number"},
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "ZK proof component C"
+        },
+        "eventRef": {
+          "type": "string",
+          "description": "Event identifier/reference"
+        },
+        "message": {
+          "type": "string",
+          "description": "Message content"
+        }
+      }
+    }
+  },
+  "blockchainSchema": {
+    "method": "registerMessage",
+    "contract": "IntegraMessage",
+    "contractType": "message",
+    "parameters": {
+      "integraHash": {
+        "source": "input",
+        "path": "integraHash"
+      },
+      "tokenId": {
+        "source": "input",
+        "path": "tokenId"
+      },
+      "processHash": {
+        "source": "input",
+        "path": "processHash"
+      },
+      "proofA": {
+        "source": "input",
+        "path": "proofA"
+      },
+      "proofB": {
+        "source": "input",
+        "path": "proofB"
+      },
+      "proofC": {
+        "source": "input",
+        "path": "proofC"
+      },
+      "eventRef": {
+        "source": "input",
+        "path": "eventRef"
+      },
+      "message": {
+        "source": "input",
+        "path": "message"
+      }
+    }
+  },
+  "outputs": {
+    "transactionHash": "${results.register-message.transactionHash}",
+    "blockNumber": "${results.register-message.blockNumber}"
+  }
+}

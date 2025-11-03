@@ -1,0 +1,123 @@
+{
+  "id": "reserve-token-anonymous-multiparty",
+  "name": "Reserve Token Anonymous (V6 - MultiParty)",
+  "version": "2.0.0",
+  "category": "blockchain",
+  "description": "Reserve token anonymously for unknown recipient - MultiPartyResolverV6",
+  "integraId": 4,
+  "defaults": {
+    "chain": "polygon",
+    "caller": null,
+    "encryptedLabel": ""
+  },
+  "metadata": {
+    "tags": ["token-reservation", "v6", "anonymous", "multiparty-resolver"],
+    "tier": 3,
+    "category": "blockchain",
+    "permissions": ["blockchain.resolver.write"]
+  },
+  "workflow": {
+    "steps": [
+      {
+        "id": "reserve-token",
+        "name": "Reserve Token on Blockchain",
+        "type": "activity",
+        "action": "message",
+        "timeout": "300s",
+        "retryPolicy": {
+          "initialInterval": "5s",
+          "maximumAttempts": 5,
+          "maximumInterval": "60s",
+          "backoffCoefficient": 2
+        },
+        "actionParams": {
+          "type": "blockchain",
+          "chain": "polygon",
+          "contractType": "resolver",
+          "contractVersion": "v6.0"
+        },
+        "continueOnFailure": false
+      },
+      {
+        "id": "emit-completion",
+        "name": "Emit Workflow Completion Event",
+        "type": "activity",
+        "action": "emit",
+        "actionParams": {
+          "eventType": "workflow.reserve-token-anonymous.completed",
+          "data": {
+            "integraHash": "${context.integraHash}",
+            "tokenId": "${input.tokenId}",
+            "amount": "${input.amount}",
+            "transactionHash": "${results.reserve-token.transactionHash}"
+          }
+        }
+      }
+    ],
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "caller",
+        "integraHash",
+        "tokenId",
+        "amount",
+        "encryptedLabel"
+      ],
+      "properties": {
+        "caller": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{40}$",
+          "description": "Caller address"
+        },
+        "integraHash": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$",
+          "description": "Document identifier"
+        },
+        "tokenId": {
+          "type": "number",
+          "description": "Token ID"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Amount to reserve"
+        },
+        "encryptedLabel": {
+          "type": "string",
+          "description": "Encrypted role label"
+        }
+      }
+    }
+  },
+  "blockchainSchema": {
+    "method": "reserveTokenAnonymous",
+    "contract": "MultiPartyResolver",
+    "contractType": "resolver",
+    "parameters": {
+      "caller": {
+        "source": "input",
+        "path": "caller"
+      },
+      "integraHash": {
+        "source": "input",
+        "path": "integraHash"
+      },
+      "tokenId": {
+        "source": "input",
+        "path": "tokenId"
+      },
+      "amount": {
+        "source": "input",
+        "path": "amount"
+      },
+      "encryptedLabel": {
+        "source": "input",
+        "path": "encryptedLabel"
+      }
+    }
+  },
+  "outputs": {
+    "transactionHash": "${results.reserve-token.transactionHash}",
+    "blockNumber": "${results.reserve-token.blockNumber}"
+  }
+}

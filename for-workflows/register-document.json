@@ -1,0 +1,171 @@
+{
+  "id": "register-document",
+  "name": "Register Document (V6)",
+  "version": "2.0.0",
+  "category": "blockchain",
+  "description": "Register a new document on IntegraDocumentRegistryV6 with ZK proof for reference validation",
+  "integraId": 2,
+  "defaults": {
+    "chain": "polygon",
+    "resolver": null,
+    "referencedDocument": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "referenceProofA": [0, 0],
+    "referenceProofB": [[0, 0], [0, 0]],
+    "referenceProofC": [0, 0],
+    "encryptedData": ""
+  },
+  "metadata": {
+    "tags": ["document-registration", "v6", "zkproof", "document-registry"],
+    "tier": 3,
+    "category": "blockchain",
+    "permissions": ["blockchain.document-registry.write"]
+  },
+  "workflow": {
+    "steps": [
+      {
+        "id": "register-document",
+        "name": "Register Document on Blockchain",
+        "type": "activity",
+        "action": "message",
+        "timeout": "300s",
+        "retryPolicy": {
+          "initialInterval": "5s",
+          "maximumAttempts": 5,
+          "maximumInterval": "60s",
+          "backoffCoefficient": 2
+        },
+        "actionParams": {
+          "type": "blockchain",
+          "chain": "polygon",
+          "contractType": "document-registry",
+          "contractVersion": "v6.0"
+        },
+        "continueOnFailure": false
+      },
+      {
+        "id": "emit-completion",
+        "name": "Emit Workflow Completion Event",
+        "type": "activity",
+        "action": "emit",
+        "actionParams": {
+          "eventType": "workflow.register-document.completed",
+          "data": {
+            "integraHash": "${context.integraHash}",
+            "documentHash": "${input.documentHash}",
+            "resolver": "${input.resolver}",
+            "transactionHash": "${results.register-document.transactionHash}"
+          }
+        }
+      }
+    ],
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "integraHash",
+        "documentHash",
+        "resolver",
+        "referencedDocument",
+        "referenceProofA",
+        "referenceProofB",
+        "referenceProofC",
+        "encryptedData"
+      ],
+      "properties": {
+        "integraHash": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$",
+          "description": "Document identifier (Poseidon hash)"
+        },
+        "documentHash": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$",
+          "description": "Content hash of the document"
+        },
+        "resolver": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{40}$",
+          "description": "Approved tokenization resolver address"
+        },
+        "referencedDocument": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$",
+          "description": "Referenced document hash (can be zero)"
+        },
+        "referenceProofA": {
+          "type": "array",
+          "items": {"type": "number"},
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "ZK proof component A for reference"
+        },
+        "referenceProofB": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {"type": "number"},
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "ZK proof component B for reference"
+        },
+        "referenceProofC": {
+          "type": "array",
+          "items": {"type": "number"},
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "ZK proof component C for reference"
+        },
+        "encryptedData": {
+          "type": "string",
+          "description": "Encrypted contact information for recipient-issuer communication"
+        }
+      }
+    }
+  },
+  "blockchainSchema": {
+    "method": "registerDocument",
+    "contract": "IntegraDocumentRegistry",
+    "contractType": "document-registry",
+    "parameters": {
+      "integraHash": {
+        "source": "input",
+        "path": "integraHash"
+      },
+      "documentHash": {
+        "source": "input",
+        "path": "documentHash"
+      },
+      "resolver": {
+        "source": "input",
+        "path": "resolver"
+      },
+      "referencedDocument": {
+        "source": "input",
+        "path": "referencedDocument"
+      },
+      "referenceProofA": {
+        "source": "input",
+        "path": "referenceProofA"
+      },
+      "referenceProofB": {
+        "source": "input",
+        "path": "referenceProofB"
+      },
+      "referenceProofC": {
+        "source": "input",
+        "path": "referenceProofC"
+      },
+      "encryptedData": {
+        "source": "input",
+        "path": "encryptedData"
+      }
+    }
+  },
+  "outputs": {
+    "integraHash": "${results.register-document.integraHash}",
+    "transactionHash": "${results.register-document.transactionHash}",
+    "blockNumber": "${results.register-document.blockNumber}"
+  }
+}

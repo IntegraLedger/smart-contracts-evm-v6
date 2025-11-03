@@ -1,0 +1,75 @@
+{
+  "id": "set-resolver-for",
+  "name": "Set Resolver For (V6 - Executor)",
+  "version": "2.0.0",
+  "category": "blockchain",
+  "description": "Set resolver for a document on behalf of owner - IntegraDocumentRegistryV6",
+  "integraId": 9,
+  "defaults": {
+    "chain": "polygon"
+  },
+  "metadata": {
+    "tags": ["resolver-management", "v6", "executor-mediated", "document-registry"],
+    "tier": 3,
+    "category": "blockchain",
+    "permissions": ["blockchain.document-registry.write"]
+  },
+  "workflow": {
+    "steps": [
+      {
+        "id": "set-resolver-for",
+        "name": "Set Resolver For Owner on Blockchain",
+        "type": "activity",
+        "action": "message",
+        "timeout": "300s",
+        "retryPolicy": {
+          "initialInterval": "5s",
+          "maximumAttempts": 5,
+          "maximumInterval": "60s",
+          "backoffCoefficient": 2
+        },
+        "actionParams": {
+          "type": "blockchain",
+          "chain": "polygon",
+          "contractType": "document-registry",
+          "contractVersion": "v6.0"
+        },
+        "continueOnFailure": false
+      }
+    ],
+    "inputSchema": {
+      "type": "object",
+      "required": ["owner", "integraHash", "newResolver"],
+      "properties": {
+        "owner": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{40}$",
+          "description": "Document owner address"
+        },
+        "integraHash": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$",
+          "description": "Document identifier"
+        },
+        "newResolver": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{40}$",
+          "description": "New resolver address"
+        }
+      }
+    }
+  },
+  "blockchainSchema": {
+    "method": "setResolverFor",
+    "contract": "IntegraDocumentRegistry",
+    "contractType": "document-registry",
+    "parameters": {
+      "owner": {"source": "input", "path": "owner"},
+      "integraHash": {"source": "input", "path": "integraHash"},
+      "newResolver": {"source": "input", "path": "newResolver"}
+    }
+  },
+  "outputs": {
+    "transactionHash": "${results.set-resolver-for.transactionHash}"
+  }
+}

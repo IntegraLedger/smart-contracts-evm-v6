@@ -1,0 +1,75 @@
+{
+  "id": "cancel-reservation",
+  "name": "Cancel Reservation (V6 - Resolver)",
+  "version": "2.0.0",
+  "category": "blockchain",
+  "description": "Cancel token reservation (issuer only) - works with all V6 resolvers",
+  "integraId": 14,
+  "defaults": {
+    "chain": "polygon",
+    "caller": null
+  },
+  "metadata": {
+    "tags": ["reservation-management", "v6", "resolver"],
+    "tier": 3,
+    "category": "blockchain",
+    "permissions": ["blockchain.resolver.write"]
+  },
+  "workflow": {
+    "steps": [
+      {
+        "id": "cancel-reservation",
+        "name": "Cancel Reservation on Blockchain",
+        "type": "activity",
+        "action": "message",
+        "timeout": "300s",
+        "retryPolicy": {
+          "initialInterval": "5s",
+          "maximumAttempts": 5,
+          "maximumInterval": "60s",
+          "backoffCoefficient": 2
+        },
+        "actionParams": {
+          "type": "blockchain",
+          "chain": "polygon",
+          "contractType": "resolver",
+          "contractVersion": "v6.0"
+        },
+        "continueOnFailure": false
+      }
+    ],
+    "inputSchema": {
+      "type": "object",
+      "required": ["caller", "integraHash", "tokenId"],
+      "properties": {
+        "caller": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{40}$",
+          "description": "Caller address (must be document issuer)"
+        },
+        "integraHash": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$",
+          "description": "Document identifier"
+        },
+        "tokenId": {
+          "type": "number",
+          "description": "Token ID to cancel (or amount for SharesResolver)"
+        }
+      }
+    }
+  },
+  "blockchainSchema": {
+    "method": "cancelReservation",
+    "contract": "Resolver",
+    "contractType": "resolver",
+    "parameters": {
+      "caller": {"source": "input", "path": "caller"},
+      "integraHash": {"source": "input", "path": "integraHash"},
+      "tokenId": {"source": "input", "path": "tokenId"}
+    }
+  },
+  "outputs": {
+    "transactionHash": "${results.cancel-reservation.transactionHash}"
+  }
+}

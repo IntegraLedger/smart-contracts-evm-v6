@@ -80,7 +80,8 @@ contract MultiPartyResolverV6 is
     mapping(bytes32 => bool) private credentialsIssued;
 
     /// @notice Ephemeral to primary wallet mapping (Layer 1 integration)
-    mapping(address => address) public ephemeralToPrimary;
+    // REMOVED: ephemeralToPrimary mapping - privacy flaw
+    // Trust graph attribution should be done off-chain via deterministic derivation
 
     /// @notice Trust registry address (for credential issuance)
     /// @dev Set during initialization if trust graph is enabled
@@ -99,11 +100,8 @@ contract MultiPartyResolverV6 is
     );
 
     // Trust graph events
-    event PrimaryWalletDeclared(
-        address indexed ephemeral,
-        address indexed primary,
-        bytes32 indexed integraHash
-    );
+    // REMOVED: PrimaryWalletDeclared event - privacy flaw
+    // On-chain linkage of ephemeral→primary defeats privacy purpose
 
     event TrustCredentialsIssued(
         bytes32 indexed integraHash,
@@ -608,42 +606,6 @@ contract MultiPartyResolverV6 is
      * @dev Enables trust credential accumulation at primary wallet level
      *      Call this before claiming token to ensure credentials go to primary
      */
-    function declarePrimaryWallet(
-        address primary,
-        bytes memory signature
-    ) external {
-        if (primary == address(0)) revert ZeroAddress();
-
-        // Verify signature from primary authorizing this ephemeral
-        bytes32 message = keccak256(abi.encode(
-            "INTEGRA_AUTHORIZE_EPHEMERAL",
-            msg.sender,      // Ephemeral wallet
-            address(this),   // This contract
-            block.chainid
-        ));
-
-        bytes32 ethSignedMessage = keccak256(abi.encodePacked(
-            "\x19Ethereum Signed Message:\n32",
-            message
-        ));
-
-        address signer = ECDSA.recover(ethSignedMessage, signature);
-        if (signer != primary) revert InvalidSignature();
-
-        ephemeralToPrimary[msg.sender] = primary;
-
-        emit PrimaryWalletDeclared(msg.sender, primary, bytes32(0));
-    }
-
-    /**
-     * @notice Get primary wallet for address
-     * @param wallet Address to query (could be ephemeral or primary)
-     * @return Primary wallet (or wallet itself if no mapping)
-     */
-    function getPrimaryWallet(address wallet) public view returns (address) {
-        address primary = ephemeralToPrimary[wallet];
-        return primary != address(0) ? primary : wallet;
-    }
 
     /**
      * @notice Handle trust credential issuance after token claim
@@ -713,8 +675,9 @@ contract MultiPartyResolverV6 is
      *      Full implementation would use PrivacyPreservingDocumentContract
      */
     function _issueCredentialToParty(address party, bytes32 integraHash) internal {
-        // Get primary wallet (trust accumulates here)
-        address recipient = getPrimaryWallet(party);
+        // Issue credential to the party address directly (ephemeral or primary)
+        // Off-chain indexer will attribute to primary wallet via deterministic derivation
+        address recipient = party;
 
         // Generate credential hash (simplified - actual would have commitments)
         bytes32 credentialHash = keccak256(abi.encode(
@@ -766,7 +729,7 @@ contract MultiPartyResolverV6 is
      * @dev Storage gap for future upgrades
      * Gap calculation: 50 - 7 state variables = 43 slots
      * State variables: tokenData (1), _baseURI (1), documentParties (1),
-     *                 credentialsIssued (1), ephemeralToPrimary (1),
+     *                 credentialsIssued (1),
      *                 trustRegistry (1), credentialSchema (1)
      */
     uint256[43] private __gap;

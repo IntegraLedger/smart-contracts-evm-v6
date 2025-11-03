@@ -1,0 +1,81 @@
+{
+  "id": "transfer-document-ownership-for",
+  "name": "Transfer Document Ownership For (V6 - Executor)",
+  "version": "2.0.0",
+  "category": "blockchain",
+  "description": "Transfer document ownership on behalf of current owner - IntegraDocumentRegistryV6",
+  "integraId": 11,
+  "defaults": {
+    "chain": "polygon",
+    "reason": ""
+  },
+  "metadata": {
+    "tags": ["ownership-transfer", "v6", "executor-mediated", "document-registry"],
+    "tier": 3,
+    "category": "blockchain",
+    "permissions": ["blockchain.document-registry.write"]
+  },
+  "workflow": {
+    "steps": [
+      {
+        "id": "transfer-ownership-for",
+        "name": "Transfer Document Ownership For Owner on Blockchain",
+        "type": "activity",
+        "action": "message",
+        "timeout": "300s",
+        "retryPolicy": {
+          "initialInterval": "5s",
+          "maximumAttempts": 5,
+          "maximumInterval": "60s",
+          "backoffCoefficient": 2
+        },
+        "actionParams": {
+          "type": "blockchain",
+          "chain": "polygon",
+          "contractType": "document-registry",
+          "contractVersion": "v6.0"
+        },
+        "continueOnFailure": false
+      }
+    ],
+    "inputSchema": {
+      "type": "object",
+      "required": ["currentOwner", "integraHash", "newOwner", "reason"],
+      "properties": {
+        "currentOwner": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{40}$",
+          "description": "Current owner address"
+        },
+        "integraHash": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$",
+          "description": "Document identifier"
+        },
+        "newOwner": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{40}$",
+          "description": "New owner address"
+        },
+        "reason": {
+          "type": "string",
+          "description": "Audit trail reason for transfer"
+        }
+      }
+    }
+  },
+  "blockchainSchema": {
+    "method": "transferDocumentOwnershipFor",
+    "contract": "IntegraDocumentRegistry",
+    "contractType": "document-registry",
+    "parameters": {
+      "currentOwner": {"source": "input", "path": "currentOwner"},
+      "integraHash": {"source": "input", "path": "integraHash"},
+      "newOwner": {"source": "input", "path": "newOwner"},
+      "reason": {"source": "input", "path": "reason"}
+    }
+  },
+  "outputs": {
+    "transactionHash": "${results.transfer-ownership-for.transactionHash}"
+  }
+}

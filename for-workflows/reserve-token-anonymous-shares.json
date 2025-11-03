@@ -1,0 +1,86 @@
+{
+  "id": "reserve-token-anonymous-shares",
+  "name": "Reserve Shares Anonymous (V6 - Shares)",
+  "version": "2.0.0",
+  "category": "blockchain",
+  "description": "Reserve shares anonymously for unknown recipients - SharesResolverV6",
+  "integraId": 13,
+  "defaults": {
+    "chain": "polygon",
+    "caller": null,
+    "encryptedLabel": ""
+  },
+  "metadata": {
+    "tags": ["shares-reservation", "v6", "anonymous", "shares-resolver"],
+    "tier": 3,
+    "category": "blockchain",
+    "permissions": ["blockchain.resolver.write"]
+  },
+  "workflow": {
+    "steps": [
+      {
+        "id": "reserve-shares",
+        "name": "Reserve Shares on Blockchain",
+        "type": "activity",
+        "action": "message",
+        "timeout": "300s",
+        "retryPolicy": {
+          "initialInterval": "5s",
+          "maximumAttempts": 5,
+          "maximumInterval": "60s",
+          "backoffCoefficient": 2
+        },
+        "actionParams": {
+          "type": "blockchain",
+          "chain": "polygon",
+          "contractType": "resolver",
+          "contractVersion": "v6.0"
+        },
+        "continueOnFailure": false
+      }
+    ],
+    "inputSchema": {
+      "type": "object",
+      "required": ["caller", "integraHash", "tokenId", "amount", "encryptedLabel"],
+      "properties": {
+        "caller": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{40}$",
+          "description": "Caller address"
+        },
+        "integraHash": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$",
+          "description": "Document identifier"
+        },
+        "tokenId": {
+          "type": "number",
+          "description": "Token ID"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Number of shares to reserve"
+        },
+        "encryptedLabel": {
+          "type": "string",
+          "description": "Encrypted share description"
+        }
+      }
+    }
+  },
+  "blockchainSchema": {
+    "method": "reserveTokenAnonymous",
+    "contract": "SharesResolver",
+    "contractType": "resolver",
+    "parameters": {
+      "caller": {"source": "input", "path": "caller"},
+      "integraHash": {"source": "input", "path": "integraHash"},
+      "tokenId": {"source": "input", "path": "tokenId"},
+      "amount": {"source": "input", "path": "amount"},
+      "encryptedLabel": {"source": "input", "path": "encryptedLabel"}
+    }
+  },
+  "outputs": {
+    "transactionHash": "${results.reserve-shares.transactionHash}"
+  }
+}

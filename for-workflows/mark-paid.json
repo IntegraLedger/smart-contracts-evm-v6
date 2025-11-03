@@ -1,0 +1,69 @@
+{
+  "id": "mark-paid",
+  "name": "Mark Payment Paid (V6)",
+  "version": "2.0.0",
+  "category": "blockchain",
+  "description": "Mark payment request as paid - IntegraSignalV6",
+  "integraId": 16,
+  "defaults": {
+    "chain": "polygon"
+  },
+  "metadata": {
+    "tags": ["payment-status", "v6", "signal"],
+    "tier": 3,
+    "category": "blockchain",
+    "permissions": ["blockchain.signal.write"]
+  },
+  "workflow": {
+    "steps": [
+      {
+        "id": "mark-paid",
+        "name": "Mark Payment as Paid on Blockchain",
+        "type": "activity",
+        "action": "message",
+        "timeout": "300s",
+        "retryPolicy": {
+          "initialInterval": "5s",
+          "maximumAttempts": 5,
+          "maximumInterval": "60s",
+          "backoffCoefficient": 2
+        },
+        "actionParams": {
+          "type": "blockchain",
+          "chain": "polygon",
+          "contractType": "signal",
+          "contractVersion": "v6.0"
+        },
+        "continueOnFailure": false
+      }
+    ],
+    "inputSchema": {
+      "type": "object",
+      "required": ["requestId", "paymentProof"],
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$",
+          "description": "Payment request identifier"
+        },
+        "paymentProof": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$",
+          "description": "TX hash, receipt URL, or other proof"
+        }
+      }
+    }
+  },
+  "blockchainSchema": {
+    "method": "markPaid",
+    "contract": "IntegraSignal",
+    "contractType": "signal",
+    "parameters": {
+      "requestId": {"source": "input", "path": "requestId"},
+      "paymentProof": {"source": "input", "path": "paymentProof"}
+    }
+  },
+  "outputs": {
+    "transactionHash": "${results.mark-paid.transactionHash}"
+  }
+}

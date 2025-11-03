@@ -1,0 +1,103 @@
+{
+  "id": "claim-token",
+  "name": "Claim Token (V6 - Resolver)",
+  "version": "2.0.0",
+  "category": "blockchain",
+  "description": "Claim reserved token with EAS capability attestation - works with all V6 resolvers",
+  "integraId": 5,
+  "defaults": {
+    "chain": "polygon",
+    "tokenId": 0
+  },
+  "metadata": {
+    "tags": ["token-claim", "v6", "attestation", "resolver"],
+    "tier": 3,
+    "category": "blockchain",
+    "permissions": ["blockchain.resolver.write"]
+  },
+  "workflow": {
+    "steps": [
+      {
+        "id": "claim-token",
+        "name": "Claim Token on Blockchain",
+        "type": "activity",
+        "action": "message",
+        "timeout": "300s",
+        "retryPolicy": {
+          "initialInterval": "5s",
+          "maximumAttempts": 5,
+          "maximumInterval": "60s",
+          "backoffCoefficient": 2
+        },
+        "actionParams": {
+          "type": "blockchain",
+          "chain": "polygon",
+          "contractType": "resolver",
+          "contractVersion": "v6.0"
+        },
+        "continueOnFailure": false
+      },
+      {
+        "id": "emit-completion",
+        "name": "Emit Workflow Completion Event",
+        "type": "activity",
+        "action": "emit",
+        "actionParams": {
+          "eventType": "workflow.claim-token.completed",
+          "data": {
+            "integraHash": "${context.integraHash}",
+            "tokenId": "${input.tokenId}",
+            "transactionHash": "${results.claim-token.transactionHash}"
+          }
+        }
+      }
+    ],
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "integraHash",
+        "tokenId",
+        "capabilityAttestationUID"
+      ],
+      "properties": {
+        "integraHash": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$",
+          "description": "Document identifier"
+        },
+        "tokenId": {
+          "type": "number",
+          "description": "Token ID to claim (0 for auto-detect in OwnershipResolver)"
+        },
+        "capabilityAttestationUID": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$",
+          "description": "EAS attestation UID proving claim capability"
+        }
+      }
+    }
+  },
+  "blockchainSchema": {
+    "method": "claimToken",
+    "contract": "Resolver",
+    "contractType": "resolver",
+    "parameters": {
+      "integraHash": {
+        "source": "input",
+        "path": "integraHash"
+      },
+      "tokenId": {
+        "source": "input",
+        "path": "tokenId"
+      },
+      "capabilityAttestationUID": {
+        "source": "input",
+        "path": "capabilityAttestationUID"
+      }
+    }
+  },
+  "outputs": {
+    "transactionHash": "${results.claim-token.transactionHash}",
+    "blockNumber": "${results.claim-token.blockNumber}"
+  }
+}

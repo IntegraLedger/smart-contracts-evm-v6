@@ -1,0 +1,68 @@
+{
+  "id": "resolve-dispute",
+  "name": "Resolve Payment Dispute (V6 - Operator)",
+  "version": "2.0.0",
+  "category": "blockchain",
+  "description": "Resolve payment dispute (operator only) - IntegraSignalV6",
+  "integraId": 19,
+  "defaults": {
+    "chain": "polygon"
+  },
+  "metadata": {
+    "tags": ["payment-dispute", "v6", "operator", "signal"],
+    "tier": 3,
+    "category": "blockchain",
+    "permissions": ["blockchain.signal.write", "operator.role"]
+  },
+  "workflow": {
+    "steps": [
+      {
+        "id": "resolve-dispute",
+        "name": "Resolve Dispute on Blockchain",
+        "type": "activity",
+        "action": "message",
+        "timeout": "300s",
+        "retryPolicy": {
+          "initialInterval": "5s",
+          "maximumAttempts": 5,
+          "maximumInterval": "60s",
+          "backoffCoefficient": 2
+        },
+        "actionParams": {
+          "type": "blockchain",
+          "chain": "polygon",
+          "contractType": "signal",
+          "contractVersion": "v6.0"
+        },
+        "continueOnFailure": false
+      }
+    ],
+    "inputSchema": {
+      "type": "object",
+      "required": ["requestId", "inFavorOfPaymentRequestr"],
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$",
+          "description": "Payment request identifier"
+        },
+        "inFavorOfPaymentRequestr": {
+          "type": "boolean",
+          "description": "True if resolving in favor of requestor"
+        }
+      }
+    }
+  },
+  "blockchainSchema": {
+    "method": "resolveDispute",
+    "contract": "IntegraSignal",
+    "contractType": "signal",
+    "parameters": {
+      "requestId": {"source": "input", "path": "requestId"},
+      "inFavorOfPaymentRequestr": {"source": "input", "path": "inFavorOfPaymentRequestr"}
+    }
+  },
+  "outputs": {
+    "transactionHash": "${results.resolve-dispute.transactionHash}"
+  }
+}
