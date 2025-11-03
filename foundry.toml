@@ -25,4 +25,16 @@ fs_permissions = [
 # Gas reporting
 gas_reports = ["*"]
 
+# RPC endpoints for deployment
+[rpc_endpoints]
+polygon = "${POLYGON_RPC}"
+ethereum = "${ETHEREUM_RPC}"
+optimism = "${OPTIMISM_RPC}"
+base = "${BASE_RPC}"
+arbitrum = "${ARBITRUM_RPC}"
+
+# Etherscan API keys for verification
+[etherscan]
+polygon = { key = "${POLYGONSCAN_API_KEY}", chain = 137, url = "https://api.polygonscan.com/api" }
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
