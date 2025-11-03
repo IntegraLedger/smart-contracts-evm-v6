@@ -1,0 +1,145 @@
+{
+  "id": "create-attestation",
+  "name": "Create EAS Attestation",
+  "version": "2.0.0",
+  "category": "blockchain",
+  "description": "Create attestation on Ethereum Attestation Service (EAS)",
+  "integraId": 20,
+  "defaults": {
+    "chain": "polygon",
+    "expirationTime": 0,
+    "revocable": true,
+    "refUID": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "value": 0
+  },
+  "metadata": {
+    "tags": ["attestation", "eas", "access-control"],
+    "tier": 3,
+    "category": "blockchain",
+    "permissions": ["blockchain.eas.write"]
+  },
+  "workflow": {
+    "steps": [
+      {
+        "id": "create-attestation",
+        "name": "Create Attestation on EAS",
+        "type": "activity",
+        "action": "message",
+        "timeout": "300s",
+        "retryPolicy": {
+          "initialInterval": "5s",
+          "maximumAttempts": 5,
+          "maximumInterval": "60s",
+          "backoffCoefficient": 2
+        },
+        "actionParams": {
+          "type": "blockchain",
+          "chain": "polygon",
+          "contractType": "eas",
+          "contractVersion": "v1.3"
+        },
+        "continueOnFailure": false
+      },
+      {
+        "id": "emit-completion",
+        "name": "Emit Workflow Completion Event",
+        "type": "activity",
+        "action": "emit",
+        "actionParams": {
+          "eventType": "workflow.create-attestation.completed",
+          "data": {
+            "attestationUID": "${results.create-attestation.attestationUID}",
+            "recipient": "${input.recipient}",
+            "schema": "${input.schema}",
+            "transactionHash": "${results.create-attestation.transactionHash}"
+          }
+        }
+      }
+    ],
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "schema",
+        "recipient",
+        "expirationTime",
+        "revocable",
+        "refUID",
+        "data",
+        "value"
+      ],
+      "properties": {
+        "schema": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$",
+          "description": "Schema UID defining attestation structure"
+        },
+        "recipient": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{40}$",
+          "description": "Address attestation is about"
+        },
+        "expirationTime": {
+          "type": "number",
+          "description": "Unix timestamp for expiration (0 for no expiration)"
+        },
+        "revocable": {
+          "type": "boolean",
+          "description": "Whether attestation can be revoked"
+        },
+        "refUID": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$",
+          "description": "Referenced attestation UID (0x000...000 for none)"
+        },
+        "data": {
+          "type": "string",
+          "description": "ABI-encoded attestation data (hex string)"
+        },
+        "value": {
+          "type": "number",
+          "description": "ETH value to send (0 for non-payable)"
+        }
+      }
+    }
+  },
+  "blockchainSchema": {
+    "method": "attest",
+    "contract": "EAS",
+    "contractType": "eas",
+    "parameters": {
+      "schema": {
+        "source": "input",
+        "path": "schema"
+      },
+      "recipient": {
+        "source": "input",
+        "path": "recipient"
+      },
+      "expirationTime": {
+        "source": "input",
+        "path": "expirationTime"
+      },
+      "revocable": {
+        "source": "input",
+        "path": "revocable"
+      },
+      "refUID": {
+        "source": "input",
+        "path": "refUID"
+      },
+      "data": {
+        "source": "input",
+        "path": "data"
+      },
+      "value": {
+        "source": "input",
+        "path": "value"
+      }
+    }
+  },
+  "outputs": {
+    "attestationUID": "${results.create-attestation.attestationUID}",
+    "transactionHash": "${results.create-attestation.transactionHash}",
+    "blockNumber": "${results.create-attestation.blockNumber}"
+  }
+}

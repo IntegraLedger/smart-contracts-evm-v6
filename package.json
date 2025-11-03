@@ -1,0 +1,54 @@
+{
+  "name": "@integraledger/smart-contracts-evm-v6",
+  "version": "6.0.0",
+  "description": "Integra V6 Smart Contracts - Enhanced document identity and tokenization system with attestation-based access control",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/IntegraLedger/smart-contracts-evm-v6.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/"
+  },
+  "files": [
+    "src/**/*.sol",
+    "out/**/*.json",
+    "deployments/**/*",
+    "script/**/*.sol",
+    "README.md",
+    "POLYGON_DEPLOYMENT.md",
+    "GAS_ANALYSIS_REPORT.md",
+    "VERIFICATION_REPORT.md"
+  ],
+  "keywords": [
+    "solidity",
+    "smart-contracts",
+    "ethereum",
+    "polygon",
+    "document-registry",
+    "tokenization",
+    "eas",
+    "attestations",
+    "upgradeable",
+    "uups",
+    "erc721",
+    "erc20",
+    "erc1155",
+    "integra",
+    "v6"
+  ],
+  "author": "IntegraLedger",
+  "license": "MIT",
+  "scripts": {
+    "build": "forge build",
+    "test": "forge test",
+    "test:gas": "forge test --gas-report",
+    "deploy:polygon": "forge script script/DeployV6.s.sol:DeployV6 --rpc-url polygon --broadcast",
+    "deploy:layer3": "forge script script/DeployLayer3.s.sol:DeployLayer3 --rpc-url polygon --broadcast",
+    "clean": "forge clean"
+  },
+  "devDependencies": {},
+  "dependencies": {},
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

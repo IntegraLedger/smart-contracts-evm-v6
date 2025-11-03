@@ -27,3 +27,4 @@ full-test-output.txt
 
 # OS
 .DS_Store
+.npmrc
