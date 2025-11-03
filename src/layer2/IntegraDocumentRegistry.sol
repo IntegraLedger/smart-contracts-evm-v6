@@ -36,7 +36,17 @@ contract IntegraDocumentRegistry is
 
     // ============ Constants ============
 
-    uint256 public constant MAX_ENCRYPTED_DATA_LENGTH = 10000; // ~10KB for contact info
+    /**
+     * @notice Maximum encrypted data length (2KB)
+     * @dev Sized for encrypted URLs and contact information
+     *      Sufficient for:
+     *      - Encrypted URL with session tokens (~1,500 bytes plaintext)
+     *      - Small encrypted JSON with multiple contact methods
+     *      - IPFS CID (Content Identifier) - only ~60 bytes
+     *      For larger data, use IPFS and store hash here
+     *      Gas savings: ~$256 per registration vs 10KB limit
+     */
+    uint256 public constant MAX_ENCRYPTED_DATA_LENGTH = 2000;
     uint256 public constant MAX_DOCUMENTS_PER_BLOCK = 50; // Rate limiting (future use)
 
     // ============ Types ============

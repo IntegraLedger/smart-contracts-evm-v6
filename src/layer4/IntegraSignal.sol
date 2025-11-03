@@ -39,7 +39,13 @@ contract IntegraSignal is
 
     // ============ Constants ============
 
-    uint256 public constant MAX_ENCRYPTED_PAYLOAD_LENGTH = 50000;
+    /**
+     * @notice Maximum encrypted payment payload length (5KB)
+     * @dev Sized for encrypted payment details (bank account, wire instructions, crypto address)
+     *      Sufficient for complex international wire transfers with extensive notes
+     *      For large attachments, use IPFS and store hash in payload
+     */
+    uint256 public constant MAX_ENCRYPTED_PAYLOAD_LENGTH = 5000;
     uint256 public constant MAX_REFERENCE_LENGTH = 200;
     uint256 public constant MAX_DISPLAY_CURRENCY_LENGTH = 10;
     uint256 public constant PAYMENT_REQUEST_TIMEOUT = 30 days;

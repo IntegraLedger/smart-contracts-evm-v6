@@ -46,7 +46,13 @@ contract SharesResolver is
 {
     // ============ Constants ============
 
-    uint256 public constant MAX_ENCRYPTED_LABEL_LENGTH = 10000;
+    /**
+     * @notice Maximum encrypted label length (500 bytes)
+     * @dev Sized for encrypted share descriptions
+     *      Sufficient for labels like "Series A Preferred Stock - 10% Revenue Rights"
+     *      For larger metadata, use IPFS and store hash in label
+     */
+    uint256 public constant MAX_ENCRYPTED_LABEL_LENGTH = 500;
     uint256 public constant MAX_TOKENS_PER_DOCUMENT = 100;
 
     // ============ State Variables ============

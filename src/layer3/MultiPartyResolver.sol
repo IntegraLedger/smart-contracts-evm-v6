@@ -45,7 +45,13 @@ contract MultiPartyResolver is
 {
     // ============ Constants ============
 
-    uint256 public constant MAX_ENCRYPTED_LABEL_LENGTH = 10000;
+    /**
+     * @notice Maximum encrypted label length (500 bytes)
+     * @dev Sized for encrypted role/party descriptions
+     *      Sufficient for labels like "Buyer Representative - Acme Corp Legal"
+     *      For larger metadata, use IPFS and store hash in label
+     */
+    uint256 public constant MAX_ENCRYPTED_LABEL_LENGTH = 500;
     uint256 public constant MAX_TOKENS_PER_DOCUMENT = 100;
 
     // ============ State Variables ============
