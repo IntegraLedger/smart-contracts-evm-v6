@@ -6,7 +6,7 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "../layer3/interfaces/IDocumentResolver.sol";
-import "../layer2/IntegraDocumentRegistry.sol";
+import "../layer2/IntegraDocumentRegistryV6.sol";
 import "../layer0/interfaces/IEAS.sol";
 
 /**
@@ -16,7 +16,7 @@ import "../layer0/interfaces/IEAS.sol";
  * V6 ARCHITECTURE:
  * - Token holder verification creates trust substrate for messaging
  * - Encrypted payment payloads (flexible schema, any payment method)
- * - Hybrid encryption (both invoicer and payer can decrypt)
+ * - Hybrid encryption (both requestor and payer can decrypt)
  * - EAS hash attestation (integrity verification without exposing details)
  * - No on-chain payment details (privacy preserved)
  * - Supports: crypto, wire, ACH, Stripe, Circle, PayPal, custom methods
@@ -28,7 +28,7 @@ import "../layer0/interfaces/IEAS.sol";
  * - Only document parties can decrypt messages
  * - Cross-document correlation impossible
  */
-contract IntegraSignal is
+contract IntegraSignalV6 is
     UUPSUpgradeable,
     AccessControlUpgradeable,
     ReentrancyGuardUpgradeable,
@@ -63,28 +63,28 @@ contract IntegraSignal is
     /**
      * @notice Payment request with encrypted payload
      * @dev Payload contains flexible payment schema (crypto, wire, stripe, etc.)
-     *      Only invoicer and payer can decrypt the payload
+     *      Only requestor and payer can decrypt the payload
      */
     struct PaymentRequest {
         // Document context
         bytes32 integraHash;
-        uint256 invoicerTokenId;
+        uint256 requestorTokenId;
         uint256 payerTokenId;
 
         // Parties (ephemeral addresses, for indexing only)
-        address invoicer;
+        address requestor;
         address payer;
 
         // Hybrid encrypted payload
         bytes encryptedPayload;              // AES-encrypted payment details
-        bytes encryptedSessionKeyInvoicer;   // Session key encrypted for invoicer (ECIES)
+        bytes encryptedSessionKeyPaymentRequestr;   // Session key encrypted for requestor (ECIES)
         bytes encryptedSessionKeyPayer;      // Session key encrypted for payer (ECIES)
 
         // Integrity verification
-        bytes32 payloadHashAttestation;      // EAS attestation UID (invoicer commits to payloadHash)
+        bytes32 payloadHashAttestation;      // EAS attestation UID (requestor commits to payloadHash)
 
         // Display information (not used for actual payment execution)
-        string invoiceReference;             // Invoice #, description
+        string invoiceReference;             // PaymentRequest #, description
         uint256 displayAmount;               // For UI display only
         string displayCurrency;              // For UI display only
 
@@ -97,13 +97,13 @@ contract IntegraSignal is
 
     // ============ State ============
 
-    IntegraDocumentRegistry public documentRegistry;
+    IntegraDocumentRegistryV6 public documentRegistry;
     IEAS public eas;
     bytes32 public paymentPayloadSchemaUID;  // EAS schema for payload hash attestations
 
     mapping(bytes32 => PaymentRequest) public paymentRequests;
     mapping(bytes32 => bytes32[]) public requestsByDocument;
-    mapping(address => bytes32[]) public requestsByInvoicer;
+    mapping(address => bytes32[]) public requestsByPaymentRequestr;
     mapping(address => bytes32[]) public requestsByPayer;
 
     uint256 private _requestNonce;
@@ -118,9 +118,9 @@ contract IntegraSignal is
     event PaymentRequested(
         bytes32 requestId,
         bytes32 indexed integraHash,
-        address indexed invoicer,
+        address indexed requestor,
         address indexed payer,
-        uint256 invoicerTokenId,
+        uint256 requestorTokenId,
         uint256 payerTokenId,
         bytes32 payloadHashAttestation,
         uint256 timestamp
@@ -161,7 +161,7 @@ contract IntegraSignal is
     event DisputeResolved(
         bytes32 indexed requestId,
         address indexed resolvedBy,
-        bool inFavorOfInvoicer,
+        bool inFavorOfPaymentRequestr,
         uint256 timestamp
     );
 
@@ -201,7 +201,7 @@ contract IntegraSignal is
         __ReentrancyGuard_init();
         __Pausable_init();
 
-        documentRegistry = IntegraDocumentRegistry(_documentRegistry);
+        documentRegistry = IntegraDocumentRegistryV6(_documentRegistry);
         eas = IEAS(_eas);
         paymentPayloadSchemaUID = _paymentPayloadSchemaUID;
 
@@ -233,14 +233,14 @@ contract IntegraSignal is
     /**
      * @notice Send payment request with encrypted payload
      * @param integraHash Document identifier
-     * @param invoicerTokenId Token held by invoicer
+     * @param requestorTokenId Token held by requestor
      * @param payerTokenId Token held by payer
      * @param payer Payer's ephemeral address
      * @param encryptedPayload AES-encrypted payment details (JSON schema)
-     * @param encryptedSessionKeyInvoicer Session key encrypted for invoicer (ECIES)
+     * @param encryptedSessionKeyPaymentRequestr Session key encrypted for requestor (ECIES)
      * @param encryptedSessionKeyPayer Session key encrypted for payer (ECIES)
-     * @param payloadHashAttestation EAS attestation UID (invoicer attests to payload hash)
-     * @param reference Invoice reference/description
+     * @param payloadHashAttestation EAS attestation UID (requestor attests to payload hash)
+     * @param invoiceReference PaymentRequest reference/description
      * @param displayAmount Amount for UI display (not used for payment)
      * @param displayCurrency Currency for UI display (not used for payment)
      * @return requestId Unique identifier for this payment request
@@ -253,14 +253,14 @@ contract IntegraSignal is
      */
     function sendPaymentRequest(
         bytes32 integraHash,
-        uint256 invoicerTokenId,
+        uint256 requestorTokenId,
         uint256 payerTokenId,
         address payer,
         bytes calldata encryptedPayload,
-        bytes calldata encryptedSessionKeyInvoicer,
+        bytes calldata encryptedSessionKeyPaymentRequestr,
         bytes calldata encryptedSessionKeyPayer,
         bytes32 payloadHashAttestation,
-        string calldata reference,
+        string calldata invoiceReference,
         uint256 displayAmount,
         string calldata displayCurrency
     ) external nonReentrant whenNotPaused returns (bytes32) {
@@ -270,8 +270,8 @@ contract IntegraSignal is
         if (encryptedPayload.length > MAX_ENCRYPTED_PAYLOAD_LENGTH) {
             revert EncryptedPayloadTooLarge(encryptedPayload.length, MAX_ENCRYPTED_PAYLOAD_LENGTH);
         }
-        if (bytes(reference).length > MAX_REFERENCE_LENGTH) {
-            revert ReferenceTooLong(bytes(reference).length, MAX_REFERENCE_LENGTH);
+        if (bytes(invoiceReference).length > MAX_REFERENCE_LENGTH) {
+            revert ReferenceTooLong(bytes(invoiceReference).length, MAX_REFERENCE_LENGTH);
         }
         if (bytes(displayCurrency).length > MAX_DISPLAY_CURRENCY_LENGTH) {
             revert DisplayCurrencyTooLong(bytes(displayCurrency).length, MAX_DISPLAY_CURRENCY_LENGTH);
@@ -280,9 +280,9 @@ contract IntegraSignal is
             revert ZeroAddress();
         }
 
-        // Verify caller holds invoicer token
-        if (!_holdsToken(integraHash, invoicerTokenId, msg.sender)) {
-            revert InvalidTokenHolder(msg.sender, integraHash, invoicerTokenId);
+        // Verify caller holds requestor token
+        if (!_holdsToken(integraHash, requestorTokenId, msg.sender)) {
+            revert InvalidTokenHolder(msg.sender, integraHash, requestorTokenId);
         }
 
         // Verify payer holds payer token
@@ -303,15 +303,15 @@ contract IntegraSignal is
         // Create payment request
         paymentRequests[requestId] = PaymentRequest({
             integraHash: integraHash,
-            invoicerTokenId: invoicerTokenId,
+            requestorTokenId: requestorTokenId,
             payerTokenId: payerTokenId,
-            invoicer: msg.sender,
+            requestor: msg.sender,
             payer: payer,
             encryptedPayload: encryptedPayload,
-            encryptedSessionKeyInvoicer: encryptedSessionKeyInvoicer,
+            encryptedSessionKeyPaymentRequestr: encryptedSessionKeyPaymentRequestr,
             encryptedSessionKeyPayer: encryptedSessionKeyPayer,
             payloadHashAttestation: payloadHashAttestation,
-            invoiceReference: reference,
+            invoiceReference: invoiceReference,
             displayAmount: displayAmount,
             displayCurrency: displayCurrency,
             state: PaymentState.PENDING,
@@ -322,7 +322,7 @@ contract IntegraSignal is
 
         // Index for querying
         requestsByDocument[integraHash].push(requestId);
-        requestsByInvoicer[msg.sender].push(requestId);
+        requestsByPaymentRequestr[msg.sender].push(requestId);
         requestsByPayer[payer].push(requestId);
 
         emit PaymentRequested(
@@ -330,7 +330,7 @@ contract IntegraSignal is
             integraHash,
             msg.sender,
             payer,
-            invoicerTokenId,
+            requestorTokenId,
             payerTokenId,
             payloadHashAttestation,
             block.timestamp
@@ -344,7 +344,7 @@ contract IntegraSignal is
      * @param requestId Payment request identifier
      * @param paymentProof TX hash, receipt URL, or other proof of payment
      *
-     * @dev Can be called by invoicer, payer, or operator
+     * @dev Can be called by requestor, payer, or operator
      *      Typically called after off-chain payment execution
      */
     function markPaid(
@@ -360,11 +360,11 @@ contract IntegraSignal is
             revert InvalidState(request.state, PaymentState.PENDING);
         }
 
-        // Only invoicer, payer, or operator can mark paid
-        if (msg.sender != request.invoicer &&
+        // Only requestor, payer, or operator can mark paid
+        if (msg.sender != request.requestor &&
             msg.sender != request.payer &&
             !hasRole(OPERATOR_ROLE, msg.sender)) {
-            revert NotAuthorized(msg.sender, request.invoicer);
+            revert NotAuthorized(msg.sender, request.requestor);
         }
 
         request.state = PaymentState.PAID;
@@ -378,7 +378,7 @@ contract IntegraSignal is
      * @notice Cancel payment request
      * @param requestId Payment request identifier
      *
-     * @dev Can be called by invoicer, payer, or anyone if request is expired
+     * @dev Can be called by requestor, payer, or anyone if request is expired
      *      Expired requests can be cleaned up by anyone to prevent storage bloat
      */
     function cancelPayment(bytes32 requestId) external nonReentrant whenNotPaused {
@@ -394,10 +394,10 @@ contract IntegraSignal is
         // Check if request is expired
         bool expired = isRequestExpired(requestId);
 
-        // If not expired, only invoicer or payer can cancel
+        // If not expired, only requestor or payer can cancel
         if (!expired) {
-            if (msg.sender != request.invoicer && msg.sender != request.payer) {
-                revert NotAuthorized(msg.sender, request.invoicer);
+            if (msg.sender != request.requestor && msg.sender != request.payer) {
+                revert NotAuthorized(msg.sender, request.requestor);
             }
         }
         // If expired, anyone can cancel for cleanup (no check needed)
@@ -440,13 +440,13 @@ contract IntegraSignal is
     /**
      * @notice Resolve dispute (operator only)
      * @param requestId Payment request identifier
-     * @param inFavorOfInvoicer True if resolving in favor of invoicer, false for payer
+     * @param inFavorOfPaymentRequestr True if resolving in favor of requestor, false for payer
      *
      * @dev Requires OPERATOR_ROLE
      */
     function resolveDispute(
         bytes32 requestId,
-        bool inFavorOfInvoicer
+        bool inFavorOfPaymentRequestr
     ) external onlyRole(OPERATOR_ROLE) nonReentrant {
         PaymentRequest storage request = paymentRequests[requestId];
 
@@ -459,7 +459,7 @@ contract IntegraSignal is
 
         request.state = PaymentState.RESOLVED;
 
-        emit DisputeResolved(requestId, msg.sender, inFavorOfInvoicer, block.timestamp);
+        emit DisputeResolved(requestId, msg.sender, inFavorOfPaymentRequestr, block.timestamp);
     }
 
     // ============ Views ============
@@ -502,16 +502,16 @@ contract IntegraSignal is
     }
 
     /**
-     * @notice Get all payment requests sent by an invoicer
-     * @param invoicer Invoicer's address
+     * @notice Get all payment requests sent by an requestor
+     * @param requestor PaymentRequestr's address
      * @return Array of request IDs
      */
-    function getRequestsByInvoicer(address invoicer)
+    function getRequestsByPaymentRequestr(address requestor)
         external
         view
         returns (bytes32[] memory)
     {
-        return requestsByInvoicer[invoicer];
+        return requestsByPaymentRequestr[requestor];
     }
 
     /**
@@ -556,7 +556,7 @@ contract IntegraSignal is
     /**
      * @notice Verify EAS attestation for payload hash
      * @param attestationUID EAS attestation identifier
-     * @param expectedAttester Expected attester (invoicer)
+     * @param expectedAttester Expected attester (requestor)
      * @return True if attestation is valid
      *
      * @dev Attestation must:
@@ -575,7 +575,7 @@ contract IntegraSignal is
                 return false;
             }
 
-            // Check attester is invoicer
+            // Check attester is requestor
             if (attestation.attester != expectedAttester) {
                 return false;
             }
@@ -624,7 +624,7 @@ contract IntegraSignal is
         if (_documentRegistry == address(0)) {
             revert ZeroAddress();
         }
-        documentRegistry = IntegraDocumentRegistry(_documentRegistry);
+        documentRegistry = IntegraDocumentRegistryV6(_documentRegistry);
     }
 
     /**
@@ -649,7 +649,7 @@ contract IntegraSignal is
      * @dev Storage gap for future upgrades
      * Total storage slots: 50
      * Used: documentRegistry(1) + eas(1) + paymentPayloadSchemaUID(1) +
-     *       paymentRequests(1) + requestsByDocument(1) + requestsByInvoicer(1) +
+     *       paymentRequests(1) + requestsByDocument(1) + requestsByPaymentRequestr(1) +
      *       requestsByPayer(1) + _requestNonce(1) + Pausable(1) = 9
      * Gap: 50 - 9 = 41
      */

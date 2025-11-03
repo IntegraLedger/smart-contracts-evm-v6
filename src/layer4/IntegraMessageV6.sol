@@ -5,7 +5,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
-import "../layer6/IntegraVerifierRegistry.sol";
+import "../layer6/IntegraVerifierRegistryV6.sol";
 
 /**
  * @title IntegraMessage
@@ -29,7 +29,7 @@ import "../layer6/IntegraVerifierRegistry.sol";
  * - Correlation is handled by off-chain indexers/software
  * - If no correlation exists, message is stored but useless (no one sees it)
  */
-contract IntegraMessage is
+contract IntegraMessageV6 is
     UUPSUpgradeable,
     AccessControlUpgradeable,
     ReentrancyGuardUpgradeable,
@@ -40,7 +40,7 @@ contract IntegraMessage is
 
     // ============ State ============
 
-    IntegraVerifierRegistry public verifierRegistry;
+    IntegraVerifierRegistryV6 public verifierRegistry;
 
     // ============ Constants ============
 
@@ -91,7 +91,7 @@ contract IntegraMessage is
         __ReentrancyGuard_init();
         __Pausable_init();
 
-        verifierRegistry = IntegraVerifierRegistry(_verifierRegistry);
+        verifierRegistry = IntegraVerifierRegistryV6(_verifierRegistry);
 
         _grantRole(DEFAULT_ADMIN_ROLE, _governor);
         _grantRole(GOVERNOR_ROLE, _governor);
@@ -207,7 +207,7 @@ contract IntegraMessage is
         if (_verifierRegistry == address(0)) {
             revert ZeroAddress();
         }
-        verifierRegistry = IntegraVerifierRegistry(_verifierRegistry);
+        verifierRegistry = IntegraVerifierRegistryV6(_verifierRegistry);
     }
 
     // ============ Storage Gap ============

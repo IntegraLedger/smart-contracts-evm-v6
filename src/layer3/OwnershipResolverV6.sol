@@ -1,55 +1,68 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20VotesUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "./interfaces/IDocumentResolver.sol";
-import "../layer0/AttestationAccessControl.sol";
+import "../layer0/AttestationAccessControlV6.sol";
+
+// TRUST GRAPH INTEGRATION
+// Note: This import path assumes trust graph contracts will be deployed
+// If PrivacyPreservingDocumentContract is not yet deployed, this can be added later
+// import "../layer0-user-org-identity/trust-graph/contracts/PrivacyPreservingDocumentContract.sol";
 
 /**
- * @title SharesResolver
- * @notice ERC-20 Votes resolver for fractional ownership with checkpoint-based pro-rata distribution
+ * @title OwnershipResolver
+ * @notice ERC-721 resolver for single-owner documents with trust graph integration
  *
  * V6 ARCHITECTURE:
  * - Anonymous reservations (address unknown at reservation time)
- * - Encrypted labels for share description
+ * - Encrypted labels for document metadata
  * - Attestation-based access control (no ZK proofs)
  * - Simplified two-step workflow (reserve → claim)
- * - Checkpoint mechanism for pro-rata payment distribution (ERC20Votes)
+ * - Trust credential issuance (when operations complete)
  *
  * USE CASES:
- * - Investment shares (multiple investors, fractional ownership)
- * - Revenue rights (pro-rata distribution to shareholders)
- * - Collective ownership (community-owned assets)
- * - Fractional real estate (multiple owners per property)
+ * - Real estate deeds (single property owner)
+ * - Vehicle titles (single vehicle owner)
+ * - Copyright ownership (single copyright holder)
+ * - Exclusive licenses (single licensee)
  *
  * CHARACTERISTICS:
- * - Fungible shares (divisible, transferable)
- * - Checkpoint mechanism (block-based historical balances for payments)
- * - Multiple holders per document
- * - Pro-rata distribution support via ERC20Votes
+ * - One NFT per document (exclusive ownership)
+ * - Non-divisible (can't split ownership)
+ * - Transferable (standard ERC-721 transfers)
+ * - Unique tokenId per reservation
  *
  * WORKFLOW:
- * 1. Issuer reserves shares with encrypted label (addresses unknown)
- * 2. Investors verify identity off-chain (email, DocuSign, etc.)
- * 3. Issuer issues capability attestations via EAS
- * 4. Investors claim shares using attestations (no ZK proof needed)
- * 5. Payment distribution uses checkpoints (fair pro-rata allocation based on past votes)
+ * 1. Issuer reserves NFT with encrypted label (address unknown)
+ * 2. Party verifies identity off-chain (email, DocuSign, etc.)
+ * 3. Issuer issues capability attestation via EAS
+ * 4. Party declares primary wallet (for trust accumulation)
+ * 5. Party claims NFT using attestation (no ZK proof needed)
+ * 6. When claimed: Trust credential issued to primary wallet
+ *
+ * TRUST INTEGRATION:
+ * - Issues anonymous credentials when token is claimed
+ * - Credentials accumulate at primary wallet level
+ * - Builds ecosystem-wide trust scores
+ * - Privacy-preserving (relationships hidden)
  */
-contract SharesResolver is
-    ERC20VotesUpgradeable,
-    AttestationAccessControl,
+contract OwnershipResolverV6 is
+    ERC721Upgradeable,
+    AttestationAccessControlV6,
     IDocumentResolver
+    // PrivacyPreservingDocumentContract  // TODO: Uncomment when trust graph deployed
 {
     // ============ Constants ============
 
     /**
      * @notice Maximum encrypted label length (500 bytes)
-     * @dev Sized for encrypted share descriptions
-     *      Sufficient for labels like "Series A Preferred Stock - 10% Revenue Rights"
+     * @dev Sized for encrypted role/party descriptions
+     *      Sufficient for labels like "Series A Investor - 10% Equity - Board Observer"
      *      For larger metadata, use IPFS and store hash in label
      */
     uint256 public constant MAX_ENCRYPTED_LABEL_LENGTH = 500;
@@ -57,19 +70,25 @@ contract SharesResolver is
 
     // ============ State Variables ============
 
-    struct ShareTokenData {
+    struct OwnershipTokenData {
         bytes32 integraHash;                          // Document identifier
-        uint256 totalShares;                          // Total minted shares
-        uint256 reservedShares;                       // Total reserved (not yet minted)
-        bytes encryptedLabel;                         // Share description encrypted with integraID
-        mapping(address => uint256) reservations;     // Per-address reservations
-        mapping(address => bool) claimed;             // Track who has claimed
-        address[] holders;                            // Current shareholders
-        uint256 firstClaimTime;                       // Timestamp of first claim (for timeout logic)
+        address owner;                                // Current owner (after minting)
+        bool minted;                                  // Prevents double minting
+        address reservedFor;                          // Specific address (or address(0) for anonymous)
+        bytes encryptedLabel;                         // Document description encrypted with integraID
     }
 
-    /// @notice Share data by integraHash (one share pool per document)
-    mapping(bytes32 => ShareTokenData) private tokenData;
+    /// @notice Token data by tokenId
+    mapping(uint256 => OwnershipTokenData) private tokenData;
+
+    /// @notice Reverse mapping: integraHash → tokenId (one token per document)
+    mapping(bytes32 => uint256) public integraHashToTokenId;
+
+    /// @notice Monotonic counter for tokenId generation
+    uint256 private _nextTokenId;
+
+    /// @notice Base URI for token metadata
+    string private _baseTokenURI;
 
     // ============ Trust Graph Integration ============
 
@@ -91,16 +110,11 @@ contract SharesResolver is
 
     // ============ Events ============
 
-    // Additional events (base events in IDocumentResolver)
-    event CheckpointCreated(
-        uint256 indexed blockNumber,
-        uint256 timestamp
-    );
-
-    event SharesMinted(
+    // Additional events specific to OwnershipResolver
+    event TokenMinted(
         bytes32 indexed integraHash,
-        address indexed recipient,
-        uint256 amount,
+        uint256 indexed tokenId,
+        address indexed owner,
         uint256 timestamp
     );
 
@@ -119,12 +133,11 @@ contract SharesResolver is
 
     // ============ Errors ============
 
-    error InvalidAmount(uint256 amount);
-    error AlreadyReserved(bytes32 integraHash, address recipient);
-    error NoReservation(bytes32 integraHash, address recipient);
-    error AlreadyClaimed(address claimer);
+    error AlreadyMinted(uint256 tokenId);
+    error AlreadyReserved(bytes32 integraHash);
+    error TokenNotFound(bytes32 integraHash, uint256 tokenId);
     error OnlyIssuerCanCancel(address caller, address issuer);
-    error InsufficientReservedShares(uint256 requested, uint256 available);
+    error NotReservedForYou(address caller, address reservedFor);
     error ZeroAddress();
     error InvalidSignature();
     error TrustGraphNotEnabled();
@@ -139,8 +152,9 @@ contract SharesResolver is
 
     /**
      * @notice Initialize contract
-     * @param name_ ERC-20 token name
-     * @param symbol_ ERC-20 token symbol
+     * @param name_ ERC-721 token name
+     * @param symbol_ ERC-721 token symbol
+     * @param baseURI_ Base URI for token metadata
      * @param governor Governor address (admin role)
      * @param _eas EAS contract address
      * @param _accessCapabilitySchema Capability attestation schema UID
@@ -150,6 +164,7 @@ contract SharesResolver is
     function initialize(
         string memory name_,
         string memory symbol_,
+        string memory baseURI_,
         address governor,
         address _eas,
         bytes32 _accessCapabilitySchema,
@@ -158,10 +173,12 @@ contract SharesResolver is
     ) external initializer {
         if (governor == address(0)) revert ZeroAddress();
 
-        __ERC20_init(name_, symbol_);
-        __ERC20Votes_init();
+        __ERC721_init(name_, symbol_);
         __ReentrancyGuard_init();
         __AttestationAccessControl_init(_eas, _accessCapabilitySchema);  // Calls __UUPSUpgradeable_init and __AccessControl_init internally
+
+        _baseTokenURI = baseURI_;
+        _nextTokenId = 1;
 
         // Trust graph integration (optional - can be disabled by passing address(0))
         credentialSchema = _credentialSchema;
@@ -176,7 +193,7 @@ contract SharesResolver is
     // ============ Emergency Controls ============
 
     /**
-     * @notice Pause all share operations (emergency use only)
+     * @notice Pause all token operations (emergency use only)
      * @dev Pauses claimToken, reserveToken, reserveTokenAnonymous, cancelReservation
      *      Admin functions remain active for emergency response
      */
@@ -185,7 +202,7 @@ contract SharesResolver is
     }
 
     /**
-     * @notice Unpause share operations
+     * @notice Unpause token operations
      */
     function unpause() external onlyRole(GOVERNOR_ROLE) {
         _unpause();
@@ -194,7 +211,7 @@ contract SharesResolver is
     // ============ IDocumentResolver Implementation ============
 
     /**
-     * @notice Reserve shares for specific address
+     * @notice Reserve NFT for specific address
      * @dev Use when recipient address is known upfront
      */
     function reserveToken(
@@ -203,31 +220,39 @@ contract SharesResolver is
         uint256 tokenId,
         address recipient,
         uint256 amount
-    ) external override onlyRole(EXECUTOR_ROLE) nonReentrant whenNotPaused {
+    ) external onlyRole(EXECUTOR_ROLE) nonReentrant whenNotPaused {
         if (recipient == address(0)) revert ZeroAddress();
-        if (amount == 0) revert InvalidAmount(amount);
 
-        ShareTokenData storage data = tokenData[integraHash];
-
-        if (data.reservations[recipient] > 0) {
-            revert AlreadyReserved(integraHash, recipient);
+        uint256 existingTokenId = integraHashToTokenId[integraHash];
+        if (existingTokenId != 0) {
+            OwnershipTokenData storage existing = tokenData[existingTokenId];
+            if (existing.minted) {
+                revert AlreadyMinted(existingTokenId);
+            }
+            if (existing.reservedFor != address(0)) {
+                revert AlreadyReserved(integraHash);
+            }
         }
 
-        if (data.integraHash == bytes32(0)) {
-            data.integraHash = integraHash;
-        }
+        uint256 newTokenId = _nextTokenId++;
 
-        data.reservations[recipient] = amount;
-        data.reservedShares += amount;
+        tokenData[newTokenId] = OwnershipTokenData({
+            integraHash: integraHash,
+            owner: address(0),
+            minted: false,
+            reservedFor: recipient,
+            encryptedLabel: ""
+        });
 
-        emit TokenReserved(integraHash, 0, recipient, amount, block.timestamp);
+        integraHashToTokenId[integraHash] = newTokenId;
+
+        emit IDocumentResolver.TokenReserved(integraHash, newTokenId, recipient, 1, block.timestamp);
     }
 
     /**
-     * @notice Reserve shares anonymously (addresses unknown)
-     * @dev Use when recipient addresses are unknown at reservation time
-     *      Multiple investors can claim from same share pool
-     *      This is the PRIMARY function for Integra's fractional ownership use case
+     * @notice Reserve NFT anonymously (address unknown)
+     * @dev Use when recipient address is unknown at reservation time
+     *      This is the PRIMARY function for Integra's use case
      */
     function reserveTokenAnonymous(
         address caller,
@@ -235,41 +260,54 @@ contract SharesResolver is
         uint256 tokenId,
         uint256 amount,
         bytes calldata encryptedLabel
-    ) external override onlyRole(EXECUTOR_ROLE) nonReentrant whenNotPaused {
-        if (amount == 0) revert InvalidAmount(amount);
-
+    ) external onlyRole(EXECUTOR_ROLE) nonReentrant whenNotPaused {
         // Validate encrypted label length
         if (encryptedLabel.length > MAX_ENCRYPTED_LABEL_LENGTH) {
             revert EncryptedLabelTooLarge(encryptedLabel.length, MAX_ENCRYPTED_LABEL_LENGTH);
         }
 
-        ShareTokenData storage data = tokenData[integraHash];
-
-        if (data.integraHash == bytes32(0)) {
-            data.integraHash = integraHash;
-            data.encryptedLabel = encryptedLabel;
+        uint256 existingTokenId = integraHashToTokenId[integraHash];
+        if (existingTokenId != 0) {
+            revert AlreadyReserved(integraHash);
         }
 
-        data.reservedShares += amount;
+        uint256 newTokenId = _nextTokenId++;
 
-        emit TokenReservedAnonymous(integraHash, 0, amount, encryptedLabel, block.timestamp);
+        tokenData[newTokenId] = OwnershipTokenData({
+            integraHash: integraHash,
+            owner: address(0),
+            minted: false,
+            reservedFor: address(0),  // Anonymous - address unknown
+            encryptedLabel: encryptedLabel
+        });
+
+        integraHashToTokenId[integraHash] = newTokenId;
+
+        emit IDocumentResolver.TokenReservedAnonymous(integraHash, newTokenId, 1, encryptedLabel, block.timestamp);
     }
 
     /**
-     * @notice Claim reserved shares with attestation
+     * @notice Claim reserved NFT with attestation
      * @param integraHash Document identifier
-     * @param tokenId Token ID (ignored for ERC20 - included for interface compatibility)
+     * @param tokenId Token ID to claim (optional - can be 0 to auto-detect)
      * @param capabilityAttestationUID EAS attestation proving claim capability
      *
      * @dev Simplified workflow - attestation IS the approval
-     *      For SharesResolver, claims are fulfilled from anonymous share pool
-     *      Attestation specifies how many shares this party can claim
+     *      No separate request/approve steps needed
+     *      No ZK proof required - attestation provides access control
      *
      * ACCESS CONTROL:
      * - Requires valid capability attestation from document issuer
      * - Attestation must grant CAPABILITY_CLAIM_TOKEN
-     * - Attestation data should include share amount in tokenId field
      * - Attestation must not be revoked or expired
+     * - For address-specific reservations, must match reservedFor
+     * - For anonymous reservations, any valid attestation can claim
+     *
+     * TRUST INTEGRATION:
+     * - Tracks party for credential issuance
+     * - Issues trust credential to primary wallet when token claimed
+     * - Credential proves business transaction completion
+     * - Trust score improves from successful operations
      */
     function claimToken(
         bytes32 integraHash,
@@ -277,56 +315,41 @@ contract SharesResolver is
         bytes32 capabilityAttestationUID
     )
         external
-        override
         requiresCapability(integraHash, CAPABILITY_CLAIM_TOKEN, capabilityAttestationUID)
         nonReentrant
         whenNotPaused
     {
-        ShareTokenData storage data = tokenData[integraHash];
+        // Auto-detect tokenId if not provided
+        uint256 actualTokenId = tokenId != 0 ? tokenId : integraHashToTokenId[integraHash];
 
-        require(data.integraHash != bytes32(0), "Shares not reserved");
-        require(!data.claimed[msg.sender], "Already claimed");
-
-        // Get claim amount from attestation
-        // For SharesResolver, amount is encoded in attestation's tokenId field
-        uint256 claimAmount = tokenId;
-        if (claimAmount == 0) {
-            // If not specified, check if there's an address-specific reservation
-            claimAmount = data.reservations[msg.sender];
-            require(claimAmount > 0, "No reservation and no amount specified");
+        if (actualTokenId == 0) {
+            revert TokenNotFound(integraHash, tokenId);
         }
 
-        if (claimAmount > data.reservedShares) {
-            revert InsufficientReservedShares(claimAmount, data.reservedShares);
+        OwnershipTokenData storage data = tokenData[actualTokenId];
+
+        // Verify not already minted
+        if (data.minted) {
+            revert AlreadyMinted(actualTokenId);
         }
 
-        // Mint shares to claimer
-        _mint(msg.sender, claimAmount);
+        // If reserved for specific address, verify caller matches
+        if (data.reservedFor != address(0) && data.reservedFor != msg.sender) {
+            revert NotReservedForYou(msg.sender, data.reservedFor);
+        }
+
+        // Mint NFT to claimer
+        _safeMint(msg.sender, actualTokenId);
 
         // Update state
-        data.totalShares += claimAmount;
-        data.reservedShares -= claimAmount;
-        data.claimed[msg.sender] = true;
+        data.owner = msg.sender;
+        data.minted = true;
+        data.reservedFor = address(0);
 
-        // Track first claim time (for timeout logic)
-        if (data.firstClaimTime == 0) {
-            data.firstClaimTime = block.timestamp;
-        }
+        emit IDocumentResolver.TokenClaimed(integraHash, actualTokenId, msg.sender, capabilityAttestationUID, block.timestamp);
+        emit TokenMinted(integraHash, actualTokenId, msg.sender, block.timestamp);
 
-        // Track holder
-        if (claimAmount == balanceOf(msg.sender)) {
-            data.holders.push(msg.sender);
-        }
-
-        // Remove address-specific reservation if exists
-        if (data.reservations[msg.sender] > 0) {
-            delete data.reservations[msg.sender];
-        }
-
-        emit TokenClaimed(integraHash, 0, msg.sender, capabilityAttestationUID, block.timestamp);
-        emit SharesMinted(integraHash, msg.sender, claimAmount, block.timestamp);
-
-        // TRUST GRAPH: Track party and issue credential if document complete
+        // TRUST GRAPH: Track party and issue credential if enabled
         _handleTrustCredential(integraHash, msg.sender);
     }
 
@@ -334,7 +357,7 @@ contract SharesResolver is
      * @notice Cancel reservation (issuer only)
      * @param caller Caller address
      * @param integraHash Document identifier
-     * @param tokenId Amount to cancel (for SharesResolver, this is the amount not tokenId)
+     * @param tokenId Token ID (optional - can be 0 to auto-detect)
      *
      * @dev Only document issuer can cancel reservations
      */
@@ -342,81 +365,56 @@ contract SharesResolver is
         address caller,
         bytes32 integraHash,
         uint256 tokenId
-    ) external override onlyRole(EXECUTOR_ROLE) nonReentrant whenNotPaused {
+    ) external onlyRole(EXECUTOR_ROLE) nonReentrant whenNotPaused {
         // Verify caller is document issuer
         address issuer = documentIssuers[integraHash];
         if (caller != issuer) {
             revert OnlyIssuerCanCancel(caller, issuer);
         }
 
-        ShareTokenData storage data = tokenData[integraHash];
+        uint256 actualTokenId = tokenId != 0 ? tokenId : integraHashToTokenId[integraHash];
 
-        require(data.integraHash != bytes32(0), "No reservation");
+        if (actualTokenId == 0) {
+            revert TokenNotFound(integraHash, tokenId);
+        }
 
-        uint256 cancelAmount = tokenId != 0 ? tokenId : data.reservedShares;
+        OwnershipTokenData storage data = tokenData[actualTokenId];
 
-        require(cancelAmount <= data.reservedShares, "Amount exceeds reserved");
+        if (data.minted) {
+            revert AlreadyMinted(actualTokenId);
+        }
 
-        data.reservedShares -= cancelAmount;
+        // Clear reservation
+        delete tokenData[actualTokenId];
+        delete integraHashToTokenId[integraHash];
 
-        emit ReservationCancelled(integraHash, 0, cancelAmount, block.timestamp);
-    }
-
-    // ============ Checkpoint Functions (ERC20Votes) ============
-
-    /**
-     * @notice Get current block number for checkpoint reference
-     * @return Current block number
-     *
-     * @dev Used for pro-rata payment distribution
-     *      Call before distributing payments to record the block number
-     *      ERC20Votes automatically creates checkpoints on every transfer
-     *
-     * NOTE: Checkpoints are created automatically - no manual snapshot needed
-     */
-    function getCurrentCheckpoint() external view returns (uint256) {
-        uint256 blockNumber = clock();
-        return blockNumber;
-    }
-
-    /**
-     * @notice Get voting power (shares) at specific block
-     * @param account Address to query
-     * @param blockNumber Block number for historical lookup
-     * @return Balance at that block (must be in the past)
-     *
-     * @dev Critical for pro-rata payment calculations
-     *      NOTE: blockNumber must be < current block
-     *      Shareholders must delegate to themselves for tracking (auto-delegated on mint)
-     */
-    function balanceOfAt(
-        address account,
-        uint256 blockNumber
-    ) public view returns (uint256) {
-        return getPastVotes(account, blockNumber);
-    }
-
-    /**
-     * @notice Get total supply at specific block
-     * @param blockNumber Block number for historical lookup
-     * @return Total supply at that block (must be in the past)
-     */
-    function totalSupplyAt(uint256 blockNumber) public view returns (uint256) {
-        return getPastTotalSupply(blockNumber);
+        emit IDocumentResolver.ReservationCancelled(integraHash, actualTokenId, 1, block.timestamp);
     }
 
     // ============ View Functions ============
 
     /**
-     * @notice Get token balance (ERC-20 standard)
+     * @notice Get token balance (ERC-721 standard)
      * @param account Address to query
-     * @param tokenId Ignored (ERC20 has no token IDs)
+     * @param tokenId Token ID (or 0 for total balance)
      */
     function balanceOf(
         address account,
         uint256 tokenId
-    ) public view override returns (uint256) {
-        return super.balanceOf(account);
+    ) public view returns (uint256) {
+        if (tokenId == 0) {
+            return ERC721Upgradeable.balanceOf(account);
+        } else {
+            // Check if token exists by looking at our tokenData
+            if (tokenData[tokenId].integraHash == bytes32(0)) {
+                return 0; // Token doesn't exist
+            }
+            // If token is minted, check ownership
+            if (tokenData[tokenId].minted) {
+                return _ownerOf(tokenId) == account ? 1 : 0;
+            }
+            return 0; // Token exists but not yet minted
+        }
     }
 
     /**
@@ -425,53 +423,74 @@ contract SharesResolver is
     function getTokenInfo(
         bytes32 integraHash,
         uint256 tokenId
-    ) external view override returns (TokenInfo memory) {
-        ShareTokenData storage data = tokenData[integraHash];
+    ) external view returns (IDocumentResolver.TokenInfo memory) {
+        uint256 actualTokenId = tokenId != 0 ? tokenId : integraHashToTokenId[integraHash];
 
-        return TokenInfo({
-            integraHash: data.integraHash,
-            tokenId: 0,  // ERC20 has no token IDs
-            totalSupply: data.totalShares,
-            reserved: data.reservedShares,
-            holders: data.holders,
+        if (actualTokenId == 0) {
+            return IDocumentResolver.TokenInfo({
+                integraHash: integraHash,
+                tokenId: 0,
+                totalSupply: 0,
+                reserved: 0,
+                holders: new address[](0),
+                encryptedLabel: "",
+                reservedFor: address(0),
+                claimed: false,
+                claimedBy: address(0)
+            });
+        }
+
+        OwnershipTokenData storage data = tokenData[actualTokenId];
+
+        address[] memory holders = new address[](data.minted ? 1 : 0);
+        if (data.minted) {
+            holders[0] = data.owner;
+        }
+
+        return IDocumentResolver.TokenInfo({
+            integraHash: integraHash,
+            tokenId: actualTokenId,
+            totalSupply: data.minted ? 1 : 0,
+            reserved: data.reservedFor != address(0) || !data.minted ? 1 : 0,
+            holders: holders,
             encryptedLabel: data.encryptedLabel,
-            reservedFor: address(0),  // ERC20 doesn't have address-specific reservations
-            claimed: false,  // Not applicable to fungible shares
-            claimedBy: address(0)  // Not applicable
+            reservedFor: data.reservedFor,
+            claimed: data.minted,
+            claimedBy: data.owner
         });
     }
 
     /**
-     * @notice Get encrypted label for shares
+     * @notice Get encrypted label for NFT
      */
     function getEncryptedLabel(
         bytes32 integraHash,
         uint256 tokenId
-    ) external view override returns (bytes memory) {
-        return tokenData[integraHash].encryptedLabel;
+    ) external view returns (bytes memory) {
+        uint256 actualTokenId = tokenId != 0 ? tokenId : integraHashToTokenId[integraHash];
+        return tokenData[actualTokenId].encryptedLabel;
     }
 
     /**
      * @notice Get all encrypted labels for document
-     * @dev SharesResolver only has one label per document (fungible shares)
+     * @dev OwnershipResolver only has one token per document
      */
     function getAllEncryptedLabels(bytes32 integraHash)
         external
         view
-        override
         returns (uint256[] memory tokenIds, bytes[] memory labels)
     {
-        ShareTokenData storage data = tokenData[integraHash];
+        uint256 tokenId = integraHashToTokenId[integraHash];
 
-        if (data.integraHash == bytes32(0)) {
+        if (tokenId == 0) {
             return (new uint256[](0), new bytes[](0));
         }
 
         tokenIds = new uint256[](1);
         labels = new bytes[](1);
 
-        tokenIds[0] = 0;  // ERC20 uses tokenId 0
-        labels[0] = data.encryptedLabel;
+        tokenIds[0] = tokenId;
+        labels[0] = tokenData[tokenId].encryptedLabel;
 
         return (tokenIds, labels);
     }
@@ -483,80 +502,65 @@ contract SharesResolver is
     function getReservedTokens(
         bytes32 integraHash,
         address recipient
-    ) external view override returns (uint256[] memory) {
-        uint256 reserved = tokenData[integraHash].reservations[recipient];
+    ) external view returns (uint256[] memory) {
+        uint256 tokenId = integraHashToTokenId[integraHash];
 
-        if (reserved == 0) {
+        if (tokenId == 0) {
             return new uint256[](0);
         }
 
-        uint256[] memory result = new uint256[](1);
-        result[0] = 0;  // ERC20 uses tokenId 0
-        return result;
+        OwnershipTokenData storage data = tokenData[tokenId];
+
+        // Check if reserved for this recipient
+        if (data.reservedFor == recipient && !data.minted) {
+            uint256[] memory result = new uint256[](1);
+            result[0] = tokenId;
+            return result;
+        }
+
+        return new uint256[](0);
     }
 
     /**
-     * @notice Get claim status
-     * @dev For SharesResolver, tracks if address has claimed (not per-token)
+     * @notice Get claim status for token
      */
     function getClaimStatus(bytes32 integraHash, uint256 tokenId)
         external
         view
-        override
         returns (bool claimed, address claimedBy)
     {
-        // SharesResolver doesn't track individual claims (fungible shares)
-        // Return total shares info instead
-        ShareTokenData storage data = tokenData[integraHash];
-        return (data.totalShares > 0, address(0));
+        uint256 actualTokenId = tokenId != 0 ? tokenId : integraHashToTokenId[integraHash];
+
+        if (actualTokenId == 0) {
+            return (false, address(0));
+        }
+
+        OwnershipTokenData storage data = tokenData[actualTokenId];
+        return (data.minted, data.owner);
     }
 
     /**
      * @notice Get token type
      */
-    function tokenType() external pure override returns (TokenType) {
-        return TokenType.ERC20;
+    function tokenType() external pure returns (IDocumentResolver.TokenType) {
+        return IDocumentResolver.TokenType.ERC721;
     }
 
-    // ============ Internal Overrides ============
+    // ============ ERC-721 Overrides ============
 
     /**
-     * @notice Update hook (required for ERC20Votes)
-     * @dev Auto-delegates to self on first token receipt for checkpoint tracking
+     * @notice Get base URI for token metadata
      */
-    function _update(
-        address from,
-        address to,
-        uint256 value
-    ) internal override {
-        super._update(from, to, value);
-
-        // Auto-delegate on first token receipt (minting or transfer)
-        // This ensures voting power (shares) are tracked in checkpoints
-        if (to != address(0) && delegates(to) == address(0)) {
-            _delegate(to, to);  // Delegate to self for checkpoint tracking
-        }
-
-        // Note: Holder tracking could be added here if needed
-        // For now, holders are tracked at claim time
-    }
-
-    // ============ ERC20Votes Overrides ============
-
-    /**
-     * @notice Clock mode for ERC20Votes (uses block number)
-     * @dev Required by ERC6372
-     */
-    function clock() public view override returns (uint48) {
-        return uint48(block.number);
+    function _baseURI() internal view override returns (string memory) {
+        return _baseTokenURI;
     }
 
     /**
-     * @notice Clock mode identifier
-     * @dev Required by ERC6372 - returns "mode=blocknumber&from=default"
+     * @notice Set base URI
+     * @param baseURI_ New base URI
      */
-    function CLOCK_MODE() public pure override returns (string memory) {
-        return "mode=blocknumber&from=default";
+    function setBaseURI(string memory baseURI_) external onlyRole(GOVERNOR_ROLE) {
+        _baseTokenURI = baseURI_;
     }
 
     // ============ Admin Functions ============
@@ -575,7 +579,7 @@ contract SharesResolver is
      */
     function supportsInterface(
         bytes4 interfaceId
-    ) public view override(AccessControlUpgradeable) returns (bool) {
+    ) public view override(ERC721Upgradeable, AccessControlUpgradeable) returns (bool) {
         return
             interfaceId == type(IDocumentResolver).interfaceId ||
             super.supportsInterface(interfaceId);
@@ -631,7 +635,7 @@ contract SharesResolver is
      * @notice Handle trust credential issuance after token claim
      * @param integraHash Document identifier
      * @param party Address that claimed (could be ephemeral)
-     * @dev Issues credential to primary wallet via EAS when document complete
+     * @dev Issues credential to primary wallet via EAS
      */
     function _handleTrustCredential(bytes32 integraHash, address party) internal {
         // Skip if trust graph not enabled
@@ -645,30 +649,9 @@ contract SharesResolver is
             documentParties[integraHash].push(party);
         }
 
-        // For SharesResolver: Check if document is complete
-        if (_isDocumentComplete(integraHash)) {
-            _issueCredentialsToAllParties(integraHash);
-        }
-    }
-
-    /**
-     * @notice Check if document is complete (shares-specific logic)
-     * @param integraHash Document identifier
-     * @return True if all shares claimed OR timeout reached
-     */
-    function _isDocumentComplete(bytes32 integraHash) internal view returns (bool) {
-        ShareTokenData storage data = tokenData[integraHash];
-
-        // All shares claimed
-        if (data.reservedShares == 0 && data.totalShares > 0) return true;
-
-        // Timeout (30 days after first claim)
-        if (data.firstClaimTime > 0 &&
-            block.timestamp > data.firstClaimTime + 30 days) {
-            return true;
-        }
-
-        return false;
+        // For OwnershipResolver: Document complete when NFT is minted
+        // Issue credential immediately
+        _issueCredentialsToAllParties(integraHash);
     }
 
     /**
@@ -747,9 +730,11 @@ contract SharesResolver is
 
     /**
      * @dev Storage gap for future upgrades
-     * Gap calculation: 50 - 6 state variables = 44 slots
-     * State variables: tokenData (1), documentParties (1), credentialsIssued (1),
-     *                 ephemeralToPrimary (1), trustRegistry (1), credentialSchema (1)
+     * Gap calculation: 50 - 9 state variables = 41 slots
+     * Original: tokenData (1), integraHashToTokenId (1), _nextTokenId (1), _baseTokenURI (1) = 4
+     * Trust graph: documentParties (1), credentialsIssued (1), ephemeralToPrimary (1),
+     *             trustRegistry (1), credentialSchema (1) = 5
+     * Total: 9 variables = 41 gap slots
      */
-    uint256[44] private __gap;
+    uint256[41] private __gap;
 }

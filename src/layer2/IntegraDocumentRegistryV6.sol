@@ -5,7 +5,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
-import "../layer6-infrastructure/IntegraVerifierRegistry.sol";
+import "../layer6/IntegraVerifierRegistryV6.sol";
 
 /**
  * @title IntegraDocumentRegistry
@@ -22,7 +22,7 @@ import "../layer6-infrastructure/IntegraVerifierRegistry.sol";
  * - Event-based indexing (no reverse lookup arrays)
  * - Ephemeral addresses stored (privacy via Layer 1 identity commitments)
  */
-contract IntegraDocumentRegistry is
+contract IntegraDocumentRegistryV6 is
     UUPSUpgradeable,
     AccessControlUpgradeable,
     ReentrancyGuardUpgradeable,
@@ -70,7 +70,7 @@ contract IntegraDocumentRegistry is
     mapping(address => bool) public approvedResolvers;
 
     // Verifier registry for ZK proof verification
-    IntegraVerifierRegistry public verifierRegistry;
+    IntegraVerifierRegistryV6 public verifierRegistry;
 
     // ============ Storage Gap ============
 
@@ -150,7 +150,7 @@ contract IntegraDocumentRegistry is
         __ReentrancyGuard_init();
         __Pausable_init();
 
-        verifierRegistry = IntegraVerifierRegistry(_verifierRegistry);
+        verifierRegistry = IntegraVerifierRegistryV6(_verifierRegistry);
 
         _grantRole(DEFAULT_ADMIN_ROLE, _governor);
         _grantRole(GOVERNOR_ROLE, _governor);
@@ -536,7 +536,7 @@ contract IntegraDocumentRegistry is
         if (_verifierRegistry == address(0)) {
             revert ZeroAddress();
         }
-        verifierRegistry = IntegraVerifierRegistry(_verifierRegistry);
+        verifierRegistry = IntegraVerifierRegistryV6(_verifierRegistry);
     }
 
     function _authorizeUpgrade(address) internal override onlyRole(GOVERNOR_ROLE) {}

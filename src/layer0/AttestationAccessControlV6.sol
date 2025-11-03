@@ -9,7 +9,7 @@ import "./interfaces/IEAS.sol";
 import "./libraries/Capabilities.sol";
 
 /**
- * @title AttestationAccessControl
+ * @title AttestationAccessControlV6
  * @notice Base contract for attestation-based access control
  *
  * Provides capability verification using EAS (Ethereum Attestation Service) attestations
@@ -38,7 +38,7 @@ import "./libraries/Capabilities.sol";
  * @dev This is an abstract contract. Inheriting contracts must implement their own
  *      business logic while using requiresCapability() for access control.
  */
-abstract contract AttestationAccessControl is
+abstract contract AttestationAccessControlV6 is
     UUPSUpgradeable,
     AccessControlUpgradeable,
     ReentrancyGuardUpgradeable,
@@ -185,7 +185,7 @@ abstract contract AttestationAccessControl is
         bytes32 documentHash,
         uint256 requiredCapability,
         bytes32 attestationUID
-    ) internal view {
+    ) internal {
         // Get attestation from EAS
         IEAS.Attestation memory attestation = eas.getAttestation(attestationUID);
 

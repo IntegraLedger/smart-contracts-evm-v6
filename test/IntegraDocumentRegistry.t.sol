@@ -2,14 +2,14 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import "../src/layer2/IntegraDocumentRegistry.sol";
-import "../src/layer6/IntegraVerifierRegistry.sol";
+import "../src/layer2/IntegraDocumentRegistryV6.sol";
+import "../src/layer6/IntegraVerifierRegistryV6.sol";
 import "./mocks/MockVerifier.sol";
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-contract IntegraDocumentRegistryTest is Test {
-    IntegraDocumentRegistry public registry;
-    IntegraVerifierRegistry public verifierRegistry;
+contract IntegraDocumentRegistryV6Test is Test {
+    IntegraDocumentRegistryV6 public registry;
+    IntegraVerifierRegistryV6 public verifierRegistry;
     MockVerifier public mockVerifier;
 
     address public governor = address(0x1);
@@ -40,13 +40,13 @@ contract IntegraDocumentRegistryTest is Test {
         mockVerifier = new MockVerifier();
 
         // Deploy and initialize VerifierRegistry
-        IntegraVerifierRegistry vrImpl = new IntegraVerifierRegistry();
+        IntegraVerifierRegistryV6 vrImpl = new IntegraVerifierRegistryV6();
         bytes memory vrInitData = abi.encodeWithSelector(
-            IntegraVerifierRegistry.initialize.selector,
+            IntegraVerifierRegistryV6.initialize.selector,
             governor
         );
         ERC1967Proxy vrProxy = new ERC1967Proxy(address(vrImpl), vrInitData);
-        verifierRegistry = IntegraVerifierRegistry(address(vrProxy));
+        verifierRegistry = IntegraVerifierRegistryV6(address(vrProxy));
 
         // Register mock verifier
         verifierRegistry.registerVerifier(
@@ -56,14 +56,14 @@ contract IntegraDocumentRegistryTest is Test {
         );
 
         // Deploy and initialize DocumentRegistry
-        IntegraDocumentRegistry impl = new IntegraDocumentRegistry();
+        IntegraDocumentRegistryV6 impl = new IntegraDocumentRegistryV6();
         bytes memory initData = abi.encodeWithSelector(
-            IntegraDocumentRegistry.initialize.selector,
+            IntegraDocumentRegistryV6.initialize.selector,
             governor,
             address(verifierRegistry)
         );
         ERC1967Proxy proxy = new ERC1967Proxy(address(impl), initData);
-        registry = IntegraDocumentRegistry(address(proxy));
+        registry = IntegraDocumentRegistryV6(address(proxy));
 
         // Grant executor role to executor address
         registry.grantRole(EXECUTOR_ROLE, executor);
@@ -92,7 +92,7 @@ contract IntegraDocumentRegistryTest is Test {
 
         assertEq(result, integraHash1);
 
-        IntegraDocumentRegistry.DocumentRecord memory doc = registry.getDocument(integraHash1);
+        IntegraDocumentRegistryV6.DocumentRecord memory doc = registry.getDocument(integraHash1);
         assertEq(doc.owner, user1);
         assertEq(doc.documentHash, documentHash1);
         assertEq(doc.resolver, resolver1);
@@ -115,7 +115,7 @@ contract IntegraDocumentRegistryTest is Test {
 
         assertEq(result, integraHash1);
 
-        IntegraDocumentRegistry.DocumentRecord memory doc = registry.getDocument(integraHash1);
+        IntegraDocumentRegistryV6.DocumentRecord memory doc = registry.getDocument(integraHash1);
         assertEq(doc.owner, user1);
     }
 
@@ -148,7 +148,7 @@ contract IntegraDocumentRegistryTest is Test {
 
         assertEq(result, integraHash2);
 
-        IntegraDocumentRegistry.DocumentRecord memory doc = registry.getDocument(integraHash2);
+        IntegraDocumentRegistryV6.DocumentRecord memory doc = registry.getDocument(integraHash2);
         assertEq(doc.referencedDocument, integraHash1);
     }
 
@@ -265,7 +265,7 @@ contract IntegraDocumentRegistryTest is Test {
         vm.prank(user1);
         registry.setResolver(integraHash1, resolver2);
 
-        IntegraDocumentRegistry.DocumentRecord memory doc = registry.getDocument(integraHash1);
+        IntegraDocumentRegistryV6.DocumentRecord memory doc = registry.getDocument(integraHash1);
         assertEq(doc.resolver, resolver2);
     }
 
@@ -287,7 +287,7 @@ contract IntegraDocumentRegistryTest is Test {
         vm.prank(executor);
         registry.setResolverFor(user1, integraHash1, resolver2);
 
-        IntegraDocumentRegistry.DocumentRecord memory doc = registry.getDocument(integraHash1);
+        IntegraDocumentRegistryV6.DocumentRecord memory doc = registry.getDocument(integraHash1);
         assertEq(doc.resolver, resolver2);
     }
 
@@ -328,7 +328,7 @@ contract IntegraDocumentRegistryTest is Test {
         vm.prank(user1);
         registry.transferDocumentOwnership(integraHash1, user2, "Transfer to user2");
 
-        IntegraDocumentRegistry.DocumentRecord memory doc = registry.getDocument(integraHash1);
+        IntegraDocumentRegistryV6.DocumentRecord memory doc = registry.getDocument(integraHash1);
         assertEq(doc.owner, user2);
     }
 
@@ -348,7 +348,7 @@ contract IntegraDocumentRegistryTest is Test {
         vm.prank(executor);
         registry.transferDocumentOwnershipFor(user1, integraHash1, user2, "Transfer to user2");
 
-        IntegraDocumentRegistry.DocumentRecord memory doc = registry.getDocument(integraHash1);
+        IntegraDocumentRegistryV6.DocumentRecord memory doc = registry.getDocument(integraHash1);
         assertEq(doc.owner, user2);
     }
 
@@ -484,7 +484,7 @@ contract IntegraDocumentRegistryTest is Test {
         hashes[0] = integraHash1;
         hashes[1] = integraHash2;
 
-        IntegraDocumentRegistry.DocumentRecord[] memory docs = registry.getDocumentsBatch(hashes);
+        IntegraDocumentRegistryV6.DocumentRecord[] memory docs = registry.getDocumentsBatch(hashes);
         assertEq(docs.length, 2);
         assertEq(docs[0].owner, user1);
         assertEq(docs[1].owner, user1);

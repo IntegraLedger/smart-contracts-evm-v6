@@ -15,7 +15,7 @@ import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
  *
  * NEW IN V3: Complete implementation (Issue #2)
  */
-contract IntegraExecutor is
+contract IntegraExecutorV6 is
     UUPSUpgradeable,
     AccessControlUpgradeable,
     ERC2771ContextUpgradeable,
@@ -77,12 +77,11 @@ contract IntegraExecutor is
     // ============ Init ============
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
+    constructor(address trustedForwarder) ERC2771ContextUpgradeable(trustedForwarder) {
         _disableInitializers();
     }
 
     function initialize(
-        address trustedForwarder,
         address _governor,
         address _feeRecipient
     ) external initializer {
@@ -92,7 +91,6 @@ contract IntegraExecutor is
 
         __UUPSUpgradeable_init();
         __AccessControl_init();
-        __ERC2771Context_init(trustedForwarder);
         __ReentrancyGuard_init();
         __Pausable_init();
 
@@ -266,28 +264,19 @@ contract IntegraExecutor is
     function _msgSender()
         internal
         view
-        override(ContextUpgradeable, ERC2771ContextUpgradeable)
+        override(ERC2771ContextUpgradeable, ContextUpgradeable)
         returns (address)
     {
-        return ERC2771ContextUpgradeable._msgSender();
+        return super._msgSender();
     }
 
     function _msgData()
         internal
         view
-        override(ContextUpgradeable, ERC2771ContextUpgradeable)
+        override(ERC2771ContextUpgradeable, ContextUpgradeable)
         returns (bytes calldata)
     {
-        return ERC2771ContextUpgradeable._msgData();
-    }
-
-    function _contextSuffixLength()
-        internal
-        view
-        override(ContextUpgradeable, ERC2771ContextUpgradeable)
-        returns (uint256)
-    {
-        return ERC2771ContextUpgradeable._contextSuffixLength();
+        return super._msgData();
     }
 
     // ============ Storage Gap ============

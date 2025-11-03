@@ -13,7 +13,7 @@ import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
  *
  * NEW IN V3: Complete implementation (Issue #2)
  */
-contract IntegraVerifierRegistry is
+contract IntegraVerifierRegistryV6 is
     UUPSUpgradeable,
     AccessControlUpgradeable,
     PausableUpgradeable
