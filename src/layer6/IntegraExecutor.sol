@@ -150,8 +150,8 @@ contract IntegraExecutor is
             revert SelectorNotAllowed(selector);
         }
 
-        // Execute
-        (bool success, bytes memory result) = target.call{value: value}(data);
+        // Execute with gas limit
+        (bool success, bytes memory result) = target.call{value: value, gas: MAX_GAS_PER_OPERATION}(data);
 
         // Transfer fee
         if (executionFee > 0) {
@@ -210,7 +210,7 @@ contract IntegraExecutor is
                 continue;
             }
 
-            (bool success, bytes memory result) = targets[i].call{value: values[i]}(dataArray[i]);
+            (bool success, bytes memory result) = targets[i].call{value: values[i], gas: MAX_GAS_PER_OPERATION}(dataArray[i]);
             successes[i] = success;
             results[i] = result;
 

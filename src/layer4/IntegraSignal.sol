@@ -42,6 +42,7 @@ contract IntegraSignal is
     uint256 public constant MAX_ENCRYPTED_PAYLOAD_LENGTH = 50000;
     uint256 public constant MAX_REFERENCE_LENGTH = 200;
     uint256 public constant MAX_DISPLAY_CURRENCY_LENGTH = 10;
+    uint256 public constant PAYMENT_REQUEST_TIMEOUT = 30 days;
 
     // ============ Types ============
 
@@ -371,7 +372,8 @@ contract IntegraSignal is
      * @notice Cancel payment request
      * @param requestId Payment request identifier
      *
-     * @dev Can be called by either invoicer or payer
+     * @dev Can be called by invoicer, payer, or anyone if request is expired
+     *      Expired requests can be cleaned up by anyone to prevent storage bloat
      */
     function cancelPayment(bytes32 requestId) external nonReentrant whenNotPaused {
         PaymentRequest storage request = paymentRequests[requestId];
@@ -383,10 +385,16 @@ contract IntegraSignal is
             revert InvalidState(request.state, PaymentState.PENDING);
         }
 
-        // Only invoicer or payer can cancel
-        if (msg.sender != request.invoicer && msg.sender != request.payer) {
-            revert NotAuthorized(msg.sender, request.invoicer);
+        // Check if request is expired
+        bool expired = isRequestExpired(requestId);
+
+        // If not expired, only invoicer or payer can cancel
+        if (!expired) {
+            if (msg.sender != request.invoicer && msg.sender != request.payer) {
+                revert NotAuthorized(msg.sender, request.invoicer);
+            }
         }
+        // If expired, anyone can cancel for cleanup (no check needed)
 
         request.state = PaymentState.CANCELLED;
 
@@ -449,6 +457,17 @@ contract IntegraSignal is
     }
 
     // ============ Views ============
+
+    /**
+     * @notice Check if payment request has expired
+     * @param requestId Payment request identifier
+     * @return expired Whether the request has exceeded timeout period
+     */
+    function isRequestExpired(bytes32 requestId) public view returns (bool) {
+        PaymentRequest storage request = paymentRequests[requestId];
+        if (request.integraHash == bytes32(0)) return false;
+        return block.timestamp > request.timestamp + PAYMENT_REQUEST_TIMEOUT;
+    }
 
     /**
      * @notice Get full payment request details
