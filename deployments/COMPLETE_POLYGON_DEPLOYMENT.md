@@ -20,21 +20,21 @@
 ### **Layer 3 - Tokenization Resolvers**
 
 **OwnershipResolverV6** (ERC-721 - Single Ownership):
-- **Proxy:** `0x98ec167546ae0cFEDB0955bcD93AC473761ce7FF`
-- **Implementation:** `0x0EB0Cc34d70E9C7CE9793BF38643c11a688b2e2A`
-- **Polygonscan:** https://polygonscan.com/address/0x98ec167546ae0cFEDB0955bcD93AC473761ce7FF
+- **Proxy:** `0x24B18C48Ca3118438ea4A9D58c942cF7e2bA3E25`
+- **Implementation:** `0x0baD938C9aA3c73304fAD3A6Bb0cEc9DbB6D0EB3`
+- **Polygonscan:** https://polygonscan.com/address/0x24B18C48Ca3118438ea4A9D58c942cF7e2bA3E25
 - **Token:** IOT-V6 (Integra Ownership Token V6)
 
 **SharesResolverV6** (ERC-20 Votes - Fractional Ownership):
-- **Proxy:** `0xAd0A3e01FA7E7081e5718E2aE5f722eF2849578D`
-- **Implementation:** `0xEC14826A69cFB488AaDeAB5e76cF679371576640`
-- **Polygonscan:** https://polygonscan.com/address/0xAd0A3e01FA7E7081e5718E2aE5f722eF2849578D
+- **Proxy:** `0x5e77ec64f01d0D864Ba1D6298fa48B6c6BE41912`
+- **Implementation:** `0x8b45D418Cc7B6d8108Ca8fdbb288FB0A4846fd38`
+- **Polygonscan:** https://polygonscan.com/address/0x5e77ec64f01d0D864Ba1D6298fa48B6c6BE41912
 - **Token:** ISH-V6 (Integra Shares V6)
 
 **MultiPartyResolverV6** (ERC-1155 - Multi-Stakeholder):
-- **Proxy:** `0x5D83e8b6caebf6d3eb5ad222592708b7215b36D8`
-- **Implementation:** `0x973c20e1298fC27F34ff7Ce1545e156CCD8012a0`
-- **Polygonscan:** https://polygonscan.com/address/0x5D83e8b6caebf6d3eb5ad222592708b7215b36D8
+- **Proxy:** `0x3860124Efbc855fb212A7cbEC15C59CFf4b31476`
+- **Implementation:** `0xab8ae816E81E3F89e6A30D757FEcd1f6043Fe593`
+- **Polygonscan:** https://polygonscan.com/address/0x3860124Efbc855fb212A7cbEC15C59CFf4b31476
 
 ---
 
@@ -131,9 +131,9 @@ multiPartyResolver.setAccessCapabilitySchema(actualSchemaUID);
 
 ```solidity
 // Call on IntegraDocumentRegistryV6 (0x8609E5627933665D4576aAE992b13465fedecBde)
-documentRegistry.setResolverApproval(0x98ec167546ae0cFEDB0955bcD93AC473761ce7FF, true); // OwnershipResolverV6
-documentRegistry.setResolverApproval(0xAd0A3e01FA7E7081e5718E2aE5f722eF2849578D, true); // SharesResolverV6
-documentRegistry.setResolverApproval(0x5D83e8b6caebf6d3eb5ad222592708b7215b36D8, true); // MultiPartyResolverV6
+documentRegistry.setResolverApproval(0x24B18C48Ca3118438ea4A9D58c942cF7e2bA3E25, true); // OwnershipResolverV6
+documentRegistry.setResolverApproval(0x5e77ec64f01d0D864Ba1D6298fa48B6c6BE41912, true); // SharesResolverV6
+documentRegistry.setResolverApproval(0x3860124Efbc855fb212A7cbEC15C59CFf4b31476, true); // MultiPartyResolverV6
 ```
 
 ### **4. Register ZK Verifiers** (if using proofs)
@@ -176,20 +176,20 @@ executor.setSelectorAllowed(bytes4(keccak256("functionSignature()")), true);
 const V6_POLYGON = {
   // Layer 2
   documentRegistry: "0x8609E5627933665D4576aAE992b13465fedecBde",
-  
+
   // Layer 3
-  ownershipResolver: "0x98ec167546ae0cFEDB0955bcD93AC473761ce7FF",
-  sharesResolver: "0xAd0A3e01FA7E7081e5718E2aE5f722eF2849578D",
-  multiPartyResolver: "0x5D83e8b6caebf6d3eb5ad222592708b7215b36D8",
-  
+  ownershipResolver: "0x24B18C48Ca3118438ea4A9D58c942cF7e2bA3E25",
+  sharesResolver: "0x5e77ec64f01d0D864Ba1D6298fa48B6c6BE41912",
+  multiPartyResolver: "0x3860124Efbc855fb212A7cbEC15C59CFf4b31476",
+
   // Layer 4
   message: "0x0247F6AF7D27988EAfcDA0540B20e79375875D0a",
   signal: "0xbdA381A883C084c5702329f796b95fE44773Fe2D",
-  
+
   // Layer 6
   verifierRegistry: "0x4A6EBd1f4Ac78A58632f7009f43AB087810335CC",
   executor: "0x786E015B709F0aAEb655416c4AA4020D66E54d96",
-  
+
   // External
   eas: "0x5E634ef5355f45A855d02D66eCD687b1502AF790",
   schemaRegistry: "0x7876EEF51A891E737AF8ba5A5E0f0Fd29073D5a7"
